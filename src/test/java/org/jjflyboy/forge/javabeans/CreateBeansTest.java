@@ -1,5 +1,8 @@
 package org.jjflyboy.forge.javabeans;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import javax.inject.Inject;
 
 import org.jboss.arquillian.container.test.api.Deployment;
@@ -19,18 +22,16 @@ import org.junit.runner.RunWith;
 public class CreateBeansTest {
 
 	@Deployment
-	@AddonDependencies({
-		@AddonDependency(name = "org.jboss.forge.furnace.container:cdi"),
-		@AddonDependency(name = "org.jboss.forge.addon:parser-java") })
+	@AddonDependencies({ @AddonDependency(name = "org.jboss.forge.furnace.container:cdi"),
+			@AddonDependency(name = "org.jboss.forge.addon:parser-java") })
 	public static AddonArchive getDeployment() {
-		return ShrinkWrap.create(AddonArchive.class)
-				.addBeansXML()
-				.addClasses(JavabeanOperations.class, JavabeanOperationsImpl.class)
-				;
+		return ShrinkWrap.create(AddonArchive.class).addBeansXML().addClasses(JavabeanOperations.class,
+				JavabeanOperationsImpl.class);
 	}
 
 	@Inject
 	private JavabeanOperations classOperations;
+	private static final Pattern FROM_STATEMENT_PATTERN = Pattern.compile("\\s*(\\w+)\\s*=\\s*example\\.(\\w+)\\s*==\\s*null\\s*\\?\\s*(\\w+)\\s*:\\s*example\\.(\\w+);");
 
 	@Test
 	public void testCreateLoader() {
@@ -44,9 +45,7 @@ public class CreateBeansTest {
 
 	@Test
 	public void testCreateLoaderField() {
-		JavaClassSource original = Roaster.create(JavaClassSource.class)
-				.setName("TestBean")
-				.setPackage("org.sample");
+		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
 		original.addField("String stringProp").setPrivate();
 		original.addField("UUID uuidProp").setPrivate();
 
@@ -59,6 +58,21 @@ public class CreateBeansTest {
 		MethodSource<JavaClassSource> withStringProp = loader.getMethod("withStringProp", String.class);
 		Assert.assertNotNull("loader does not have withStringProp method", withStringProp);
 		Assert.assertTrue("with method is not public", withStringProp.isPublic());
+
+		MethodSource<JavaClassSource> withFrom = loader.getMethod("from", original.getName());
+		Assert.assertNotNull(withFrom);
+
+		String[] fields = new String[] {"stringProp", "uuidProp"};
+		String[] lines = withFrom.getBody().toString().split("\n");
+		Assert.assertEquals("not only two lines", 2, lines.length);
+		for(int i = 0; i < lines.length; i++) {
+			Matcher m = FROM_STATEMENT_PATTERN.matcher(lines[i]);
+			Assert.assertTrue("line does not match", m.matches());
+			Assert.assertEquals("wrong group count", 4, m.groupCount());
+			for(int j = 1; j < m.groupCount() + 1; j++) {
+				Assert.assertEquals("group " + Integer.toString(j) + " is not the right field", fields[i], m.group(j));
+			}
+		}
 	}
 
 	@Test
@@ -70,6 +84,17 @@ public class CreateBeansTest {
 		Assert.assertNotNull("loader is not created", original.getNestedType("Loader"));
 		String supertype = loader.getSuperType();
 		Assert.assertNotNull("loader does not have correct supertype", supertype.contains("SuperTestBean"));
+
+	}
+
+	@Test
+	public void testFromStatementPattern() {
+		Matcher m = FROM_STATEMENT_PATTERN.matcher("number = example.number == null ? number :     example.number;");
+		Assert.assertTrue("from statement pattern doesn't work anymore", m.matches());
+		Assert.assertEquals("not 'number'", "number", m.group(1));
+		Assert.assertEquals("not 'number'", "number", m.group(2));
+		Assert.assertEquals("not 'number'", "number", m.group(3));
+		Assert.assertEquals("not 'number'", "number", m.group(4));
 
 	}
 }

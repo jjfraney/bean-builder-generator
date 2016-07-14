@@ -22,15 +22,37 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		JavaClassSource loader = (JavaClassSource) Roaster
 				.parse("protected abstract static class Loader<T extends Loader<T>> " + extendsSuperType + "{ }");
 
+		// adds property
 		for (FieldSource<JavaClassSource> field : javabean.getFields()) {
 			loader.addField(field.toString()).setProtected();
+		}
+
+		// adds with-methods per property
+		for (FieldSource<JavaClassSource> field : javabean.getFields()) {
 			String fieldName = field.getName();
 			String fieldType = field.getType().getName();
 			String m = String.format(WITH_METHOD_FORMAT, capitalize(fieldName), fieldName, fieldType);
 			loader.addMethod(m);
 		}
+		
+		// adds from-by-example method
 		MethodSource<JavaClassSource> fromMethod = loader.addMethod().setName("from");
 		fromMethod.addParameter(javabean, "example");
+		// adds statements in from-by-example method
+		StringBuilder statementBuilder = new StringBuilder();
+		for (FieldSource<JavaClassSource> field : javabean.getFields()) {
+			statementBuilder
+				.append(field.getName())
+				.append(" = ")
+				.append("example.").append(field.getName())
+				.append(" == null ? ")
+				.append(field.getName())
+				.append(" : ")
+				.append("example.").append(field.getName())
+				.append(";\n");
+		}
+		fromMethod.setBody(statementBuilder.toString());
+
 		javabean.addNestedType(loader);
 	}
 
