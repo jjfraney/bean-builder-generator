@@ -1,8 +1,5 @@
 package org.jjflyboy.forge.javabeans;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import javax.annotation.Generated;
 
 import org.jboss.forge.roaster.Roaster;
@@ -38,40 +35,58 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 				.parse("protected abstract static class Loader<T extends Loader<T>> " + extendsSuperType + "{ }");
 		loader.addAnnotation(Generated.class).setLiteralValue(GENERATED_ANNOTATION_VALUE);
 
-		List<String> exampleSetters = new ArrayList<>();
-		List<String> withMethods = new ArrayList<>();
-
-		StringBuilder statementBuilder = new StringBuilder();
+		MethodSource<JavaClassSource> fromMethod = addFromMethod(javabean, loader);
 		for (FieldSource<JavaClassSource> field : javabean.getFields()) {
-			// adds property
-			loader.addField(field.toString()).setProtected();
+			addField(loader, field);
 
-			// adds with-methods per property
-			String fieldName = field.getName();
-			String captializedFieldName = capitalize(fieldName);
-			String fieldType = field.getType().getName();
+			addWithFieldMethod(loader, field);
 
-			String m = String.format(WITH_METHOD_FORMAT, captializedFieldName, fieldName, fieldType);
-			withMethods.add(m);
-
-			// adds field's from-by-example method
-			String fromMethodDeclaration = String.format(FROM_FIELD_EXAMPLE_METHOD_FORMAT, captializedFieldName,
-					fieldName, fieldType);
-			exampleSetters.add(fromMethodDeclaration);
-
-			// adds statements in from-by-example method
-			statementBuilder
-			.append(String.format(CALL_FROM_FIELD_EXAMPLE_METHOD_FORMAT, captializedFieldName, fieldName));
+			addFromFieldMethod(loader, field);
+			addFromMethodStatement(fromMethod, field);
 		}
-		withMethods.stream().forEach(m -> loader.addMethod(m));
-
-		MethodSource<JavaClassSource> fromMethod = loader.addMethod().setName("from").setPublic();
-		fromMethod.addParameter(javabean, "example");
-		fromMethod.setBody(statementBuilder.toString());
-
-		exampleSetters.stream().forEach(m -> loader.addMethod(m));
 
 		return javabean.addNestedType(loader);
+	}
+
+	private MethodSource<JavaClassSource> addFromMethod(JavaClassSource javabean, JavaClassSource loader) {
+		MethodSource<JavaClassSource> fromMethod = loader.addMethod().setName("from").setPublic();
+		fromMethod.addParameter(javabean, "example");
+		return fromMethod;
+	}
+
+	private void addFromMethodStatement(MethodSource<JavaClassSource> fromMethod, FieldSource<JavaClassSource> field) {
+		String statement = createFromMethodStatement(field);
+		String body = fromMethod.getBody();
+		if (body == null) {
+			fromMethod.setBody(statement);
+		} else {
+			fromMethod.setBody(fromMethod.getBody() + statement);
+		}
+	}
+
+	private String createFromMethodStatement(FieldSource<JavaClassSource> field) {
+		String captializedFieldName = capitalize(field.getName());
+		// adds statements in from-by-example method
+		String statement = String.format(CALL_FROM_FIELD_EXAMPLE_METHOD_FORMAT, captializedFieldName,
+				field.getName());
+		return statement;
+	}
+
+	private MethodSource<JavaClassSource> addFromFieldMethod(JavaClassSource loader,
+			FieldSource<JavaClassSource> field) {
+		String fromMethodDeclaration = String.format(FROM_FIELD_EXAMPLE_METHOD_FORMAT, capitalize(field.getName()),
+				field.getName(), field.getType().getName());
+		return loader.addMethod(fromMethodDeclaration);
+	}
+
+	private MethodSource<JavaClassSource> addWithFieldMethod(JavaClassSource loader,
+			FieldSource<JavaClassSource> field) {
+		String m = String.format(WITH_METHOD_FORMAT, capitalize(field.getName()), field.getName(), field.getType().getName());
+		return loader.addMethod(m);
+	}
+
+	private FieldSource<JavaClassSource> addField(JavaClassSource loader, FieldSource<JavaClassSource> field) {
+		return loader.addField(field.toString()).setProtected();
 	}
 
 	private String capitalize(String name) {
