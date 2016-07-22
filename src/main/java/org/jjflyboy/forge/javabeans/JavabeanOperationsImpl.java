@@ -3,6 +3,8 @@ package org.jjflyboy.forge.javabeans;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.annotation.Generated;
+
 import org.jboss.forge.roaster.Roaster;
 import org.jboss.forge.roaster.model.source.FieldSource;
 import org.jboss.forge.roaster.model.source.JavaClassSource;
@@ -15,7 +17,15 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 	private final static String CALL_FROM_FIELD_EXAMPLE_METHOD_FORMAT = "set%1$sFrom(example.%2$s);";
 
 	@Override
-	public void addLoader(JavaClassSource javabean) {
+	public JavaClassSource addLoader(JavaClassSource javabean) {
+
+		JavaClassSource existingLoader = (JavaClassSource) javabean.getNestedType("Loader");
+		if (existingLoader != null) {
+			if (existingLoader.getAnnotation(Generated.class) == null) {
+				return existingLoader;
+			}
+			javabean.removeNestedType(existingLoader);
+		}
 
 		String extendsSuperType = null;
 		if (!"java.lang.Object".equals(javabean.getSuperType())) {
@@ -26,6 +36,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 		JavaClassSource loader = (JavaClassSource) Roaster
 				.parse("protected abstract static class Loader<T extends Loader<T>> " + extendsSuperType + "{ }");
+		loader.addAnnotation(Generated.class).setLiteralValue(GENERATED_ANNOTATION_VALUE);
 
 		List<String> exampleSetters = new ArrayList<>();
 		List<String> withMethods = new ArrayList<>();
@@ -50,7 +61,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 			// adds statements in from-by-example method
 			statementBuilder
-					.append(String.format(CALL_FROM_FIELD_EXAMPLE_METHOD_FORMAT, captializedFieldName, fieldName));
+			.append(String.format(CALL_FROM_FIELD_EXAMPLE_METHOD_FORMAT, captializedFieldName, fieldName));
 		}
 		withMethods.stream().forEach(m -> loader.addMethod(m));
 
@@ -60,7 +71,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 		exampleSetters.stream().forEach(m -> loader.addMethod(m));
 
-		javabean.addNestedType(loader);
+		return javabean.addNestedType(loader);
 	}
 
 	private String capitalize(String name) {
