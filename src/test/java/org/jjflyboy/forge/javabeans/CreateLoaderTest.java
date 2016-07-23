@@ -11,6 +11,7 @@ import org.jboss.forge.arquillian.archive.AddonArchive;
 import org.jboss.forge.roaster.Roaster;
 import org.jboss.forge.roaster.model.source.FieldSource;
 import org.jboss.forge.roaster.model.source.JavaClassSource;
+import org.jboss.forge.roaster.model.source.MethodSource;
 import org.jboss.shrinkwrap.api.ShrinkWrap;
 import org.junit.Assert;
 import org.junit.Test;
@@ -38,6 +39,15 @@ public class CreateLoaderTest {
 		Assert.assertNotNull("loader is not created", loader);
 		String supertype = loader.getSuperType();
 		Assert.assertNotNull("loader has supertype", !"java.lang.Object".equals(supertype));
+
+		MethodSource<JavaClassSource> fromMethod = loader.getMethod("from", original.getName());
+		Assert.assertNotNull("from method was not created", fromMethod);
+
+		MethodSource<JavaClassSource> modifyMethod = loader.getMethod("modify", original.getName());
+		Assert.assertNotNull("modify method was not created", modifyMethod);
+
+		MethodSource<JavaClassSource> initMethod = loader.getMethod("initialize", original.getName());
+		Assert.assertNotNull("initialize method was not created", initMethod);
 	}
 
 	@Test
