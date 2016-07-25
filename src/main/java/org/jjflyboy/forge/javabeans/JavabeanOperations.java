@@ -14,5 +14,7 @@ public interface JavabeanOperations {
 	 * @param javabean
 	 * @return the nested Loader class
 	 */
-	JavaClassSource addLoader(JavaClassSource javabean);
+	JavaClassSource buildLoader(JavaClassSource javabean);
+
+	JavaClassSource rebuildLoader(JavaClassSource javabean);
 }

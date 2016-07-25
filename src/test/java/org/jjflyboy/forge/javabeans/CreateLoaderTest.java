@@ -34,7 +34,7 @@ public class CreateLoaderTest {
 	@Test
 	public void testCreateLoader() {
 		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
-		classOperations.addLoader(original);
+		classOperations.buildLoader(original);
 		JavaClassSource loader = (JavaClassSource) original.getNestedType("Loader");
 		Assert.assertNotNull("loader is not created", loader);
 		String supertype = loader.getSuperType();
@@ -54,7 +54,7 @@ public class CreateLoaderTest {
 	public void testCreateLoaderWithSuperClass() {
 		JavaClassSource original = (JavaClassSource) Roaster.parse("public class TestBean extends SuperTestBean {}");
 		original.setPackage("org.sample");
-		classOperations.addLoader(original);
+		classOperations.buildLoader(original);
 		JavaClassSource loader = (JavaClassSource) original.getNestedType("Loader");
 		Assert.assertNotNull("loader is not created", original.getNestedType("Loader"));
 		String supertype = loader.getSuperType();
@@ -64,8 +64,8 @@ public class CreateLoaderTest {
 	@Test
 	public void annotatesWithGenerated() {
 		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
-		classOperations.addLoader(original);
-		JavaClassSource loader = classOperations.addLoader(original);
+		classOperations.buildLoader(original);
+		JavaClassSource loader = classOperations.buildLoader(original);
 		Assert.assertNotNull("didn't mark 'Generated' annotation", loader.getAnnotation(Generated.class));
 	}
 
@@ -73,11 +73,11 @@ public class CreateLoaderTest {
 	public void observesPresentGeneratedAnnotation() {
 		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
 		FieldSource<JavaClassSource> testField = original.addField("int testField");
-		JavaClassSource firstLoader = classOperations.addLoader(original);
+		JavaClassSource firstLoader = classOperations.buildLoader(original);
 		Assert.assertNotNull("test field not in loader", firstLoader.getField("testField"));
 
 		original.removeField(testField);
-		JavaClassSource secondLoader = classOperations.addLoader(original);
+		JavaClassSource secondLoader = classOperations.buildLoader(original);
 		Assert.assertNull("original loader not overridden", secondLoader.getField("testField"));
 
 	}
@@ -86,12 +86,12 @@ public class CreateLoaderTest {
 	public void observesAbsentGeneratedAnnotation() {
 		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
 		FieldSource<JavaClassSource> testField = original.addField("int testField");
-		JavaClassSource firstLoader = classOperations.addLoader(original);
+		JavaClassSource firstLoader = classOperations.buildLoader(original);
 		Assert.assertNotNull("test field not in loader", firstLoader.getField("testField"));
 
 		firstLoader.removeAnnotation(firstLoader.getAnnotation(Generated.class));
 		original.removeField(testField);
-		JavaClassSource secondLoader = classOperations.addLoader(original);
+		JavaClassSource secondLoader = classOperations.buildLoader(original);
 		Assert.assertNotNull("original loader has been overridden", secondLoader.getField("testField"));
 
 	}
