@@ -1,9 +1,10 @@
 package org.jjflyboy.forge.javabeans;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import javax.annotation.Generated;
 
@@ -11,6 +12,7 @@ import org.jboss.forge.roaster.Roaster;
 import org.jboss.forge.roaster.model.source.AnnotationTargetSource;
 import org.jboss.forge.roaster.model.source.FieldSource;
 import org.jboss.forge.roaster.model.source.JavaClassSource;
+import org.jboss.forge.roaster.model.source.MemberSource;
 import org.jboss.forge.roaster.model.source.MethodSource;
 
 public class JavabeanOperationsImpl implements JavabeanOperations {
@@ -30,131 +32,258 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		}
 		final List<FieldSource<JavaClassSource>> fields = javabean.getFields();
 
+		final List<MethodSource<JavaClassSource>> preservedMethods = existingLoader == null ? Collections.emptyList() :
+			existingLoader.getMethods().stream().filter(this::isPreserved).collect(Collectors.toList());
+		final List<FieldSource<JavaClassSource>> preservedFields = existingLoader == null ? Collections.emptyList() :
+			existingLoader.getFields().stream().filter(this::isPreserved).collect(Collectors.toList());
+
 		final JavaClassSource loader = generateLoader(javabean);
 
-		ExtendedBiFunction<FieldSource<JavaClassSource>, String, FieldMethodInfo> fieldMethodInfo = new ExtendedBiFunction<FieldSource<JavaClassSource>, String, JavabeanOperationsImpl.FieldMethodInfo>() {
-
-			@Override
-			public FieldMethodInfo apply(FieldSource<JavaClassSource> field, String prefix) {
-				return new FieldMethodInfo(field, getPreservedMethod(existingLoader, field, prefix));
-			}
-
-			/**
-			 * return the old method from the existing loader if the method
-			 * exists and is not generated
-			 *
-			 * @param existingLoader
-			 * @param field
-			 * @param prefix
-			 * @return
-			 */
-			private MethodSource<JavaClassSource> getPreservedMethod(JavaClassSource existingLoader,
-					FieldSource<JavaClassSource> field, String prefix) {
-				MethodSource<JavaClassSource> result = null;
-				if (existingLoader != null) {
-					String methodName = prefix + capitalize(field.getName());
-					MethodSource<JavaClassSource> oldMethod = existingLoader.getMethod(methodName,
-							field.getType().getName());
-					if (oldMethod != null && isPreserved(oldMethod)) {
-						result = oldMethod;
-					}
-				}
-				return result;
-			}
-
+		Function<FieldSource<JavaClassSource>, MemberDescriptor> fieldDescriptor = (f) -> {
+			return new FieldDescriptor(f, preservedFields);
 		};
-		ExtendedBiFunction<FieldMethodInfo, Function<FieldSource<JavaClassSource>, String>, String> generateMethod = new ExtendedBiFunction<JavabeanOperationsImpl.FieldMethodInfo, Function<FieldSource<JavaClassSource>, String>, String>() {
-
-			@Override
-			public String apply(FieldMethodInfo t, Function<FieldSource<JavaClassSource>, String> generator) {
-				return t.preservedFieldMethod == null
-						? generator.apply(t.field) : t.preservedFieldMethod.toString();
-			}
-
+		Function<FieldSource<JavaClassSource>, MemberDescriptor> withFieldMethodDescriptor = (f) -> {
+			return new WithFieldMethodDescriptor(f, preservedMethods);
 		};
 
-		// to generate Loader.from${field}(${fieldType} example)
-		Function<FieldSource<JavaClassSource>, String> fieldToFromFieldMethodDefinition =
-				fieldMethodInfo.curry2("from")
-				.andThen(generateMethod.curry2(this::generateFromFieldMethod));
-		// to generate Loader.modify${field}(${fieldType} example)
-		Function<FieldSource<JavaClassSource>, String> fieldToModifyFieldMethodDefinition =
-				fieldMethodInfo.curry2("modify")
-				.andThen(generateMethod.curry2(this::generateModifyFieldMethod));
-		// to generate Loader.initialize${field}(${fieldType} example)
-		Function<FieldSource<JavaClassSource>, String> fieldToInitializeFieldMethodDefinition =
-				fieldMethodInfo.curry2("initialize")
-				.andThen(generateMethod.curry2(this::generateInitializeFieldMethod));
+		Function<FieldSource<JavaClassSource>, MemberDescriptor> fromFieldMethodDescriptor = (f) -> {
+			return new FromFieldMethodDescriptor(f, preservedMethods);
+		};
+		Function<FieldSource<JavaClassSource>, MemberDescriptor> modifyFieldMethodDescriptor = (f) -> {
+			return new ModifyFieldMethodDescriptor(f, preservedMethods);
+		};
+		Function<FieldSource<JavaClassSource>, MemberDescriptor> initializeFieldMethodDescriptor = (f) -> {
+			return new InitializeFieldMethodDescriptor(f, preservedMethods);
+		};
 
+		// for each ${field}, add ${field} in the loader
+		fields.stream().map(fieldDescriptor).map(MemberDescriptor::asString).forEach(loader::addField);
 
-		fields.stream().forEach(f -> preserveField(existingLoader, loader, f));
-		fields.stream().forEach(f -> preserveWithMethod(existingLoader, loader, f));
+		// for each ${field}, add with${field} method in the loader
+		fields.stream().map(withFieldMethodDescriptor).map(MemberDescriptor::asString).forEach(loader::addMethod);
 
-		fields.stream().map(fieldToFromFieldMethodDefinition).forEach(loader::addMethod);
-
-		MethodSource<JavaClassSource> fromMethod = preserveMethod(existingLoader, loader,
-				() -> addFromMethod(javabean, loader), "from", javabean.getName());
+		// add loader.from(${javabean} example) method
+		MethodSource<JavaClassSource> fromMethod = loader.addMethod(new FromMethodDescriptor(javabean, preservedMethods).asString());
 		if (isGenerated(fromMethod)) {
 			fields.stream().forEach(f -> addFromMethodStatement(fromMethod, f));
 		}
+		// for each ${field}, add from${field} method in the loader
+		fields.stream().map(fromFieldMethodDescriptor).map(MemberDescriptor::asString).forEach(loader::addMethod);
 
-		MethodSource<JavaClassSource> modifyMethod = preserveMethod(existingLoader,
-				loader, () -> addModifyMethod(javabean, loader), "modify", javabean.getName());
-		fields.stream().map(fieldToModifyFieldMethodDefinition).forEach(loader::addMethod);
+		// add loader.modify(${javabean} target) method
+		MethodSource<JavaClassSource> modifyMethod = loader.addMethod(new ModifyMethodDescriptor(javabean, preservedMethods).asString());
 		if (isGenerated(modifyMethod)) {
 			fields.stream().forEach(f -> addModifyMethodStatement(modifyMethod, f));
 		}
+		// for each ${field}, add modify${field} method in the loader
+		fields.stream().map(modifyFieldMethodDescriptor).map(MemberDescriptor::asString).forEach(loader::addMethod);
 
-		MethodSource<JavaClassSource> initMethod = preserveMethod(existingLoader,
-				loader, () -> addInitializeMethod(javabean, loader), "initialize", javabean.getName());
-		fields.stream().map(fieldToInitializeFieldMethodDefinition).forEach(loader::addMethod);
+		// add loader.initialize(${javabean} target) method
+		MethodSource<JavaClassSource> initMethod = loader.addMethod(new InitializeMethodDescriptor(javabean, preservedMethods).asString());
 		if (isGenerated(initMethod)) {
 			fields.stream().forEach(f -> addInitializeMethodStatement(initMethod, f));
 		}
+		// for each ${field}, add initialize${field} method in the loader
+		fields.stream().map(initializeFieldMethodDescriptor).map(MemberDescriptor::asString).forEach(loader::addMethod);
 
 		javabean.removeNestedType(existingLoader);
 		return javabean.addNestedType(loader);
 
 	}
 
-	private class FieldMethodInfo {
+	private interface MemberDescriptor {
+
+		String asString();
+
+		boolean isGenerated();
+	}
+
+	private abstract class AbstractMemberDescriptor<T extends MemberSource<JavaClassSource, ?>>
+	implements MemberDescriptor {
+		protected T existing;
+
+		@Override
+		public String asString() {
+			return existing == null ? generate() : existing.toString();
+		}
+
+		@Override
+		public boolean isGenerated() {
+			return existing == null;
+		}
+
+		protected abstract String generate();
+	}
+
+	/**
+	 * to describe the Loader's field....for each of the enclosing bean's fields
+	 *
+	 * @author jfraney
+	 *
+	 */
+	private class FieldDescriptor extends AbstractMemberDescriptor<FieldSource<JavaClassSource>> {
+		// the field from the enclosing bean
 		private final FieldSource<JavaClassSource> field;
-		private final MethodSource<JavaClassSource> preservedFieldMethod;
 
-		public FieldMethodInfo(FieldSource<JavaClassSource> field, MethodSource<JavaClassSource> method) {
+		public FieldDescriptor(FieldSource<JavaClassSource> field, List<FieldSource<JavaClassSource>> preserved) {
 			this.field = field;
-			this.preservedFieldMethod = method;
+			existing = preserved.stream().filter(f -> f.getName().equals(field.getName())).findFirst().orElse(null);
 		}
 
-	}
-
-	private MethodSource<JavaClassSource> preserveMethod(JavaClassSource oldLoader, JavaClassSource newLoader, Supplier<MethodSource<JavaClassSource>> maker, String name, String ... parameterTypes) {
-		MethodSource<JavaClassSource> old = oldLoader == null ? null : oldLoader.getMethod(name, parameterTypes);
-		if(old == null || isGenerated(old)) {
-			return maker.get();
-		} else {
-			return newLoader.addMethod(old.toString());
+		@Override
+		protected String generate() {
+			return new StringBuilder().append("@Generated(").append(GENERATED_ANNOTATION_VALUE).append(")\n")
+					.append("private ").append(field.getType().getName()).append(" ").append(field.getName())
+					.append(";")
+					.toString();
 		}
 	}
 
-	private MethodSource<JavaClassSource> preserveMethodField(JavaClassSource oldLoader,
-			JavaClassSource newLoader, Supplier<MethodSource<JavaClassSource>> maker, String prefix, FieldSource<JavaClassSource> field) {
-		String name = prefix + capitalize(field.getName());
-		return preserveMethod(oldLoader, newLoader, maker, name, field.getType().getName());
+	/**
+	 * to describe methods that are not bound to fields in the enclosing javabean
+	 * @author jfraney
+	 *
+	 */
+	private abstract class MethodDescriptor extends AbstractMemberDescriptor<MethodSource<JavaClassSource>> {
+		private JavaClassSource enclosure;
+		public MethodDescriptor(String name, JavaClassSource enclosure, List<MethodSource<JavaClassSource>> preserved) {
+			existing = preserved.stream().filter(m -> m.getName().equals(name)).findFirst().orElse(null);
+			this.enclosure = enclosure;
+		}
+		public JavaClassSource getEnclosure() {
+			return enclosure;
+		}
+
+	}
+	private class FromMethodDescriptor extends MethodDescriptor {
+		public FromMethodDescriptor(JavaClassSource enclosure, List<MethodSource<JavaClassSource>> preserved) {
+			super("from", enclosure, preserved);
+		}
+
+		@Override
+		protected String generate() {
+			return new StringBuilder().append("public T from(").append(getEnclosure().getName()).append(" example) {}").toString();
+		}
+	}
+	private class ModifyMethodDescriptor extends MethodDescriptor {
+		public ModifyMethodDescriptor(JavaClassSource enclosure, List<MethodSource<JavaClassSource>> preserved) {
+			super("modify", enclosure, preserved);
+		}
+
+		@Override
+		protected String generate() {
+			return new StringBuilder().append("public T modify(").append(getEnclosure().getName()).append(" target) {}").toString();
+		}
+	}
+	private class InitializeMethodDescriptor extends MethodDescriptor {
+		public InitializeMethodDescriptor(JavaClassSource enclosure, List<MethodSource<JavaClassSource>> preserved) {
+			super("initialize", enclosure, preserved);
+		}
+
+		@Override
+		protected String generate() {
+			return new StringBuilder().append("public T initialize(").append(getEnclosure().getName()).append(" target) {}").toString();
+		}
 	}
 
-	private MethodSource<JavaClassSource> preserveWithMethod(JavaClassSource existingLoader, JavaClassSource newLoader,
-			FieldSource<JavaClassSource> field) {
-		return preserveMethodField(existingLoader, newLoader, () -> defineWithMethod(newLoader, field), "with", field);
+	/**
+	 * to describe methods that are bound to the fields in the enclosing javabean
+	 * @author jfraney
+	 *
+	 */
+	private abstract class FieldMethodDescriptor extends AbstractMemberDescriptor<MethodSource<JavaClassSource>> {
+		private final FieldSource<JavaClassSource> field;
+
+		public FieldMethodDescriptor(FieldSource<JavaClassSource> field, String prefix,
+				List<MethodSource<JavaClassSource>> preserved) {
+			this.field = field;
+			String name = prefix + capitalize(getField().getName());
+			existing = preserved.stream().filter(m -> m.getName().equals(name)).findFirst().orElse(null);
+		}
+
+		public FieldSource<JavaClassSource> getField() {
+			return field;
+		}
 	}
 
-	private void preserveField(JavaClassSource oldLoader, JavaClassSource newLoader,
-			FieldSource<JavaClassSource> field) {
-		FieldSource<JavaClassSource> oldField = oldLoader == null ? null : oldLoader.getField(field.getName());
-		if (oldField == null || isGenerated(oldField)) {
-			defineField(newLoader, field);
-		} else {
-			newLoader.addField(oldField.toString());
+	private class FromFieldMethodDescriptor extends FieldMethodDescriptor {
+		public FromFieldMethodDescriptor(FieldSource<JavaClassSource> field,
+				List<MethodSource<JavaClassSource>> preserved) {
+			super(field, "from", preserved);
+		}
+
+		@Override
+		protected String generate() {
+			return new StringBuilder().append("@Generated(").append(GENERATED_ANNOTATION_VALUE).append(")\n")
+					.append("private void from").append(capitalize(getField().getName())).append("(")
+					.append(getField().getType().getName()).append(" example) { ").append(generateBody()).append(" }")
+					.toString();
+		}
+
+		private String generateBody() {
+			String body = String.format("%2$s = example == null ? %2$s : example;", capitalize(getField().getName()),
+					getField().getName(), getField().getType().getName());
+			return body;
+		}
+	}
+
+	private class ModifyFieldMethodDescriptor extends FieldMethodDescriptor {
+		public ModifyFieldMethodDescriptor(FieldSource<JavaClassSource> field,
+				List<MethodSource<JavaClassSource>> preserved) {
+			super(field, "modify", preserved);
+		}
+
+		@Override
+		protected String generate() {
+			return new StringBuilder().append("@Generated(").append(GENERATED_ANNOTATION_VALUE).append(")\n")
+					.append("private void modify").append(capitalize(getField().getName())).append("(")
+					.append(getField().getType().getName()).append(" target) { ")
+					.append(generateBody())
+					.append(" }").toString();
+		}
+		private String generateBody() {
+			return String.format("target.%2$s = %2$s == null ? target.%2$s : %2$s;", capitalize(getField().getName()),
+					getField().getName(), getField().getType().getName());
+		}
+	}
+
+	private class InitializeFieldMethodDescriptor extends FieldMethodDescriptor {
+		public InitializeFieldMethodDescriptor(FieldSource<JavaClassSource> field,
+				List<MethodSource<JavaClassSource>> preserved) {
+			super(field, "initialize", preserved);
+		}
+
+		@Override
+		protected String generate() {
+			return new StringBuilder().append("@Generated(").append(GENERATED_ANNOTATION_VALUE).append(")\n")
+					.append("private void initialize").append(capitalize(getField().getName())).append("(")
+					.append(getField().getType().getName()).append(" target) { ")
+					.append(generateInitializeFieldMethodBody(getField())).append(" }").toString();
+		}
+
+		private String generateInitializeFieldMethodBody(FieldSource<JavaClassSource> field) {
+			return String.format("target.%2$s = %2$s;", capitalize(field.getName()), field.getName(),
+					field.getType().getName());
+		}
+	}
+
+	private class WithFieldMethodDescriptor extends FieldMethodDescriptor {
+		public WithFieldMethodDescriptor(FieldSource<JavaClassSource> field,
+				List<MethodSource<JavaClassSource>> preserved) {
+			super(field, "with", preserved);
+		}
+
+		@Override
+		protected String generate() {
+			return new StringBuilder().append("@Generated(").append(GENERATED_ANNOTATION_VALUE).append(")\n")
+					.append("private T with").append(capitalize(getField().getName())).append("(")
+					.append(getField().getType().getName()).append(" ").append(getField().getName()).append(") { ")
+					.append(generateBody()).append(" }").toString();
+		}
+
+		private String generateBody() {
+			return String.format("this.%2$s = %2$s; return (T) this;", capitalize(getField().getName()),
+					getField().getName(), getField().getType().getName());
 		}
 	}
 
@@ -178,48 +307,6 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		return (JavaClassSource) javabean.getNestedType(name);
 	}
 
-	/**
-	 * add loader.initialize(beantype) method.
-	 *
-	 * @param javabean
-	 * @param loader
-	 * @return
-	 */
-	private MethodSource<JavaClassSource> addInitializeMethod(JavaClassSource javabean, JavaClassSource loader) {
-		return generateMethod(loader, (m) -> {
-			m.setName("initialize").setProtected().setBody("").addParameter(javabean, "target");
-		});
-	}
-
-	/**
-	 * add loader.modify(beantype) method.
-	 *
-	 * @param javabean
-	 * @param loader
-	 * @return
-	 */
-	private MethodSource<JavaClassSource> addModifyMethod(JavaClassSource javabean, JavaClassSource loader) {
-		return generateMethod(loader, (m) -> {
-			m.setName("modify").setProtected().setBody("").addParameter(javabean, "target");
-		});
-	}
-
-	/**
-	 * add loader.from method. This method is passed an example of the same
-	 * javabean.
-	 *
-	 * @param javabean
-	 * @param loader
-	 * @return
-	 */
-	private MethodSource<JavaClassSource> addFromMethod(JavaClassSource javabean, JavaClassSource loader) {
-		return generateMethod(loader, (m) -> {
-			m.setName("from")
-			.setPublic()
-			.setReturnType("T")
-			.addParameter(javabean, "example");
-		});
-	}
 
 	/**
 	 * adds a statement for the field to the loader's from method;
@@ -255,99 +342,6 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		return String.format("modify%1$s(target.%2$s);", capitalize(field.getName()), field.getName());
 	}
 
-	/**
-	 * add loader.from${field}() method where '${field}' is the name of a field
-	 * in the javabean.
-	 * 
-	 * @param field
-	 * @return the method's definition string
-	 */
-	private String generateFromFieldMethod(FieldSource<JavaClassSource> field) {
-		return new StringBuilder().append("@Generated(").append(GENERATED_ANNOTATION_VALUE).append(")\n")
-				.append("private void from").append(capitalize(field.getName())).append("(")
-				.append(field.getType().getName()).append(" example) { ")
-				.append(generateFromFieldMethodBody(field))
-				.append(" }").toString();
-	}
-
-	private String generateFromFieldMethodBody(FieldSource<JavaClassSource> field) {
-		String body = String.format("%2$s = example == null ? %2$s : example;", capitalize(field.getName()),
-				field.getName(), field.getType().getName());
-
-		return body;
-	}
-
-	/**
-	 * add loader.initialize${field} method
-	 *
-	 * @param field
-	 * @return the method's definition string
-	 */
-
-	private String generateInitializeFieldMethod(FieldSource<JavaClassSource> field) {
-		return new StringBuilder().append("@Generated(").append(GENERATED_ANNOTATION_VALUE).append(")\n")
-				.append("private void initialize").append(capitalize(field.getName())).append("(")
-				.append(field.getType().getName()).append(" target) { ")
-				.append(generateInitializeFieldMethodBody(field))
-				.append(" }").toString();
-	}
-	private String generateInitializeFieldMethodBody(FieldSource<JavaClassSource> field) {
-		return String.format("target.%2$s = %2$s;", capitalize(field.getName()), field.getName(),
-				field.getType().getName());
-	}
-
-	/**
-	 * add loader.modify${field} method
-	 *
-	 * @param field
-	 * @return
-	 */
-
-	private String generateModifyFieldMethod(FieldSource<JavaClassSource> field) {
-		return new StringBuilder().append("@Generated(").append(GENERATED_ANNOTATION_VALUE).append(")\n")
-				.append("private void modify").append(capitalize(field.getName())).append("(")
-				.append(field.getType().getName()).append(" target) { ")
-				.append(generateModifyFieldMethodBody(field))
-				.append(" }").toString();
-	}
-	private String generateModifyFieldMethodBody(FieldSource<JavaClassSource> field) {
-		return String.format("target.%2$s = %2$s == null ? target.%2$s : %2$s;", capitalize(field.getName()),
-				field.getName(), field.getType().getName());
-	}
-
-	/**
-	 * add method loader.with${field}
-	 *
-	 * @param loader
-	 * @param field
-	 * @return
-	 */
-	private MethodSource<JavaClassSource> defineWithMethod(JavaClassSource loader,
-			FieldSource<JavaClassSource> field) {
-		return generateMethod(loader, (m) -> {
-			m.setName("with" + capitalize(field.getName()));
-			m.setParameters(field.getType().getName() + " " + field.getName());
-			m.setReturnType("T");
-			m.setPublic();
-			String body = String.format("this.%2$s = %2$s; return (T) this;", capitalize(field.getName()),
-					field.getName(), field.getType().getName());
-			m.setBody(body);
-		});
-	}
-
-	/**
-	 * add loader.${field}.
-	 *
-	 * @param loader
-	 * @param field
-	 * @return
-	 */
-	private FieldSource<JavaClassSource> defineField(JavaClassSource loader, FieldSource<JavaClassSource> field) {
-		return generateField(loader, (f) -> {
-			f.setName(field.getName()).setType(field.getType().getName()).setProtected();
-		});
-	}
-
 	private String capitalize(String name) {
 		return name.substring(0, 1).toUpperCase() + name.substring(1);
 	}
@@ -370,21 +364,4 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		addAnnotation(source);
 		return source;
 	}
-	private MethodSource<JavaClassSource> generateMethod(JavaClassSource container,
-			Consumer<MethodSource<JavaClassSource>> c) {
-		MethodSource<JavaClassSource> source = container.addMethod();
-		addAnnotation(source);
-		c.accept(source);
-		return source;
-	}
-
-	private FieldSource<JavaClassSource> generateField(JavaClassSource container,
-			Consumer<FieldSource<JavaClassSource>> c) {
-		FieldSource<JavaClassSource> source = container.addField();
-		addAnnotation(source);
-		c.accept(source);
-		return source;
-
-	}
-
 }

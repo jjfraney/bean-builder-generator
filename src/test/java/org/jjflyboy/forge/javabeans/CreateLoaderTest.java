@@ -25,7 +25,7 @@ public class CreateLoaderTest {
 		@AddonDependency(name = "org.jboss.forge.addon:parser-java") })
 	public static AddonArchive getDeployment() {
 		return ShrinkWrap.create(AddonArchive.class).addBeansXML().addClasses(JavabeanOperations.class,
-				JavabeanOperationsImpl.class, ExtendedBiFunction.class);
+				JavabeanOperationsImpl.class);
 	}
 
 	@Inject
