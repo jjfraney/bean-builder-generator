@@ -28,6 +28,7 @@ public class FieldOperationsRebuildAndPreservationTest {
 				JavabeanOperationsImpl.class);
 	}
 
+	@SuppressWarnings("CanBeFinal")
 	@Inject
 	private JavabeanOperations classOperations;
 

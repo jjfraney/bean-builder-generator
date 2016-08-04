@@ -28,6 +28,7 @@ public class CreateLoaderTest {
 				JavabeanOperationsImpl.class);
 	}
 
+	@SuppressWarnings("CanBeFinal")
 	@Inject
 	private JavabeanOperations classOperations;
 

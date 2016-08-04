@@ -25,6 +25,7 @@ public class FieldOperationsTest {
 				JavabeanOperationsImpl.class);
 	}
 
+	@SuppressWarnings("CanBeFinal")
 	@Inject
 	private JavabeanOperations classOperations;
 
@@ -32,7 +33,7 @@ public class FieldOperationsTest {
 	public void testCreateField() {
 		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean")
 				.setPackage("org.sample");
-		JavaClassSource oldLoader = classOperations.buildLoader(original);
+		classOperations.buildLoader(original);
 		original.addField("Integer intField");
 		JavaClassSource newLoader = classOperations.rebuildLoader(original);
 
@@ -40,7 +41,7 @@ public class FieldOperationsTest {
 		Assert.assertNotNull("withField was not added", newLoader.getMethod("withIntField", Integer.class));
 		Assert.assertNotNull("fromField method was not added", newLoader.getMethod("fromIntField", Integer.class));
 		Assert.assertNotNull("modifyField method was not added", newLoader.getMethod("modifyIntField", Integer.class));
-		Assert.assertNotNull("initilizeField method was not added.",
+		Assert.assertNotNull("initializeField method was not added.",
 				newLoader.getMethod("initializeIntField", Integer.class));
 	}
 
