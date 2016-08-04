@@ -23,4 +23,9 @@ interface JavabeanOperations {
 	 * @return the nested Loader class
 	 */
 	JavaClassSource rebuildLoader(JavaClassSource javabean);
+
+	JavaClassSource buildBuilder(JavaClassSource javabean);
+	JavaClassSource rebuildBuilder(JavaClassSource javabean);
+	JavaClassSource buildUpdater(JavaClassSource javabean);
+	JavaClassSource rebuildUpdater(JavaClassSource javabean);
 }
