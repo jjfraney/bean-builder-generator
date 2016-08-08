@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Generated;
 
 import org.jboss.forge.roaster.Roaster;
+import org.jboss.forge.roaster.model.Type;
 import org.jboss.forge.roaster.model.source.*;
 
 public class JavabeanOperationsImpl implements JavabeanOperations {
@@ -127,14 +128,53 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 	 */
 	private abstract class MethodDescriptor extends AbstractMemberDescriptor<MethodSource<JavaClassSource>> {
 		final JavaClassSource enclosure;
+		final List<MethodSource<JavaClassSource>> preserved;
+		final String name;
 		public MethodDescriptor(String name, JavaClassSource enclosure, List<MethodSource<JavaClassSource>> preserved) {
 			existing = preserved.stream().filter(m -> m.getName().equals(name)).findFirst().orElse(null);
 			this.enclosure = enclosure;
+			this.preserved = preserved;
+			this.name = name;
 		}
 		public JavaClassSource getEnclosure() {
 			return enclosure;
 		}
+		protected List<MethodSource<JavaClassSource>> getPreserved() {
+			return preserved;
+		}
 
+		/**
+		 * get the field method from the preserved list, or null.  The field method is named ${name}${field.name} and
+		 * has a single parameter of the target bean's type.
+		 * @param field
+		 * @return
+		 */
+		protected MethodSource<JavaClassSource> getPreservedFieldMethod(FieldSource<JavaClassSource> field) {
+			return getPreserved().stream()
+					.filter(m -> isFieldMethod(m, field))
+					.findAny().orElse(null);
+		}
+		private boolean isFieldMethod(MethodSource<JavaClassSource> m, FieldSource<JavaClassSource> field) {
+			String methodName = name + capitalize(field.getName());
+			return 	m.getName().equals(methodName)
+					&& m.getParameters().size() == 1
+					&& m.getParameters().get(0).getType().getName().equals(enclosure.getName());
+		}
+
+		/**
+		 * return a generated statement, using the call descriptor to call a preserved method (if any) or
+		 * the inline descriptor
+		 * @param field
+		 * @param inlineDesc
+		 * @param callDesc
+		 * @return
+		 */
+
+		protected String generateStatement(FieldSource<JavaClassSource> field, String inlineDesc, String callDesc) {
+			MethodSource<JavaClassSource> method = getPreservedFieldMethod(field);
+			return method == null ? inlineDesc.replace("${field.name}", field.getName())
+					: callDesc.replace("${method.name}", method.getName());
+		}
 	}
 	private class FromMethodDescriptor extends MethodDescriptor {
 		public FromMethodDescriptor(JavaClassSource enclosure, List<MethodSource<JavaClassSource>> preserved) {
@@ -154,10 +194,20 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 		private String generateStatements() {
 			return getEnclosure().getFields().stream()
-					.map(f -> String.format("from%1$s(example.%2$s);\n", capitalize(f.getName()), f.getName()))
+					.map(f -> generateStatement(f))
 					.collect(Collectors.joining());
 		}
+
+		private final String STATEMENT_CALL_METHOD_DESC = "${method.name}(example);";
+		private final String STATEMENT_INLINE_DESC = "this.${field.name} = example.${field.name} == null ? " +
+				"this.${field.name} : example.${field.name};";
+
+		private String generateStatement(FieldSource<JavaClassSource> field) {
+			return generateStatement(field, STATEMENT_INLINE_DESC, STATEMENT_CALL_METHOD_DESC);
+		}
+
 	}
+
 	private class ModifyMethodDescriptor extends MethodDescriptor {
 		public ModifyMethodDescriptor(JavaClassSource enclosure, List<MethodSource<JavaClassSource>> preserved) {
 			super("modify", enclosure, preserved);
@@ -177,10 +227,19 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 		private String generateStatements() {
 			return getEnclosure().getFields().stream()
-					.map(f -> String.format("modify%1$s(target);", capitalize(f.getName())))
+					.map(f -> generateStatement(f))
 					.collect(Collectors.joining());
-
 		}
+
+		private final String STATEMENT_CALL_METHOD_DESC = "${method.name}(target);";
+		private final String STATEMENT_INLINE_DESC = "target.${field.name} = " +
+				"this.${field.name} == null ? target.${field.name} : this.${field.name};";
+
+
+		private String generateStatement(FieldSource<JavaClassSource> field) {
+			return generateStatement(field, STATEMENT_INLINE_DESC, STATEMENT_CALL_METHOD_DESC);
+		}
+
 	}
 	private class InitializeMethodDescriptor extends MethodDescriptor {
 		public InitializeMethodDescriptor(JavaClassSource enclosure, List<MethodSource<JavaClassSource>> preserved) {
@@ -201,9 +260,16 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 		private String generateStatements() {
 			return getEnclosure().getFields().stream()
-					.map(f -> String.format("initialize%1$s(target.%2$s);", capitalize(f.getName()), f.getName()))
+					.map(f -> generateStatement(f))
 					.collect(Collectors.joining());
 
+		}
+		private final String STATEMENT_CALL_METHOD_DESC = "${method.name}(target);";
+		private final String STATEMENT_INLINE_DESC = "target.${field.name} = this.${field.name};";
+
+
+		private String generateStatement(FieldSource<JavaClassSource> field) {
+			return generateStatement(field, STATEMENT_INLINE_DESC, STATEMENT_CALL_METHOD_DESC);
 		}
 	}
 
@@ -322,9 +388,10 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		final List<FieldSource<JavaClassSource>> preservedFields = existingLoader == null ? Collections.emptyList() :
 				existingLoader.getFields().stream().filter(this::isPreserved).collect(Collectors.toList());
 
-		final List<FieldSource<JavaClassSource>> fields = javabean.getFields()
+		final List<FieldSource<JavaClassSource>> genFields = javabean.getFields()
 				.stream()
 				.filter(f -> !f.isStatic())
+				.filter(f -> ! preservedFields.contains(f))
 				.collect(Collectors.toList());
 
 		Function<FieldSource<JavaClassSource>, MemberDescriptor> fieldDescriptor = (f) -> new FieldDescriptor(f, preservedFields);
@@ -337,29 +404,27 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		Function<FieldSource<JavaClassSource>, MemberDescriptor> initializeFieldMethodDescriptor =
 				(f) -> new InitializeFieldMethodDescriptor(f, preservedMethods);
 
-		// for each ${field}, add ${field} in the loader
-		fields.stream().map(fieldDescriptor).map(MemberDescriptor::asString).forEach(loader::addField);
+		// copy all preserved fields to new laoder
+		preservedFields.stream().map((f) -> f.toString()).forEach(loader::addField);
 
-		// for each ${field}, add with${field} method in the loader
-		fields.stream().map(withFieldMethodDescriptor).map(MemberDescriptor::asString).forEach(loader::addMethod);
+		// for each non-preserved ${field}, generate and add ${field} to the loader
+		genFields.stream().map(fieldDescriptor).map(MemberDescriptor::asString).forEach(loader::addField);
+
+		// copy all preserved methods to new loader
+		preservedMethods.stream().map((m) -> m.toString()).forEach(loader::addMethod);
 
 		// add loader.from(${javabean} example) method
 		loader.addMethod(new FromMethodDescriptor(javabean, preservedMethods).asString());
 
-		// for each ${field}, add from${field} method in the loader
-		fields.stream().map(fromFieldMethodDescriptor).map(MemberDescriptor::asString).forEach(loader::addMethod);
-
 		// add loader.modify(${javabean} target) method
 		loader.addMethod(new ModifyMethodDescriptor(javabean, preservedMethods).asString());
-
-		// for each ${field}, add modify${field} method in the loader
-		fields.stream().map(modifyFieldMethodDescriptor).map(MemberDescriptor::asString).forEach(loader::addMethod);
 
 		// add loader.initialize(${javabean} target) method
 		loader.addMethod(new InitializeMethodDescriptor(javabean, preservedMethods).asString());
 
-		// for each ${field}, add initialize${field} method in the loader
-		fields.stream().map(initializeFieldMethodDescriptor).map(MemberDescriptor::asString).forEach(loader::addMethod);
+
+		// for each ${field}, generate and add with${field} method to the new loader
+		genFields.stream().map(withFieldMethodDescriptor).map(MemberDescriptor::asString).forEach(loader::addMethod);
 
 		// we want supertype: ${javabean.name}.Loader<T>
 		// roaster's setSuperType(${javabean.name}.Loader<T>) gives supertype of "Loader<T>", WRONG.

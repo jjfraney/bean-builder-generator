@@ -53,28 +53,6 @@ public class FieldOperationsRebuildAndPreservationTest {
 		Assert.assertEquals("field was not overwritten", generatedField, newLoader.getField("intField").toString());
 	}
 
-
-
-	@Test
-	public void testGeneratedOnWithFieldMethod() {
-		testGeneratedLoaderFieldMethod("with");
-	}
-
-	@Test
-	public void testGeneratedOnFromFieldMethod() {
-		testGeneratedLoaderFieldMethod("from");
-	}
-
-	@Test
-	public void testGeneratedOnModifyFieldMethod() {
-		testGeneratedLoaderFieldMethod("modify");
-	}
-
-	@Test
-	public void testGeneratedOnInitializeFieldMethod() {
-		testGeneratedLoaderFieldMethod("initialize");
-	}
-
 	@Test
 	public void testGeneratedOnFromMethod() {
 		testGeneratedLoaderMethod("from");
@@ -111,17 +89,17 @@ public class FieldOperationsRebuildAndPreservationTest {
 
 	@Test
 	public void testEditableFromFieldMethod() {
-		testEditableLoaderFieldMethod("from");
+		testPreservedUserDefinedLoaderFieldMethod("from");
 	}
 
 	@Test
 	public void testEditableModifyFieldMethod() {
-		testEditableLoaderFieldMethod("modify");
+		testPreservedUserDefinedLoaderFieldMethod("modify");
 	}
 
 	@Test
 	public void testEditableInitializeFieldMethod() {
-		testEditableLoaderFieldMethod("initialize");
+		testPreservedUserDefinedLoaderFieldMethod("initialize");
 	}
 
 	@Test
@@ -137,16 +115,6 @@ public class FieldOperationsRebuildAndPreservationTest {
 	@Test
 	public void testEditableInitializeMethod() {
 		testEditableLoaderMethod("initialize");
-	}
-
-	private void testGeneratedLoaderFieldMethod(String prefix) {
-		MethodSource<JavaClassSource> method = loader.getMethod(prefix + "IntField", Integer.class);
-		String former = method.toString();
-		// the @Generated is on this method as pre-condition.
-		method.setBody("");
-		JavaClassSource newLoader = classOperations.rebuildLoader(original);
-		String postRebuild = newLoader.getMethod(prefix + "IntField", Integer.class).toString();
-		Assert.assertEquals(prefix + " field method's body was not overwritten.", former, postRebuild);
 	}
 
 	private void testGeneratedLoaderMethod(String name) {
@@ -169,6 +137,19 @@ public class FieldOperationsRebuildAndPreservationTest {
 		JavaClassSource newLoader = classOperations.rebuildLoader(original);
 		String postRebuild = newLoader.getMethod(prefix + "IntField", Integer.class).toString();
 		Assert.assertEquals(prefix + " field method's body was not preserved.", edited, postRebuild);
+	}
+
+	private void testPreservedUserDefinedLoaderFieldMethod(String prefix) {
+		String decl = "private void ${prefix}IntField(TestBean target) {}".replace("${prefix}", prefix);
+		MethodSource<JavaClassSource> method = loader.addMethod(decl);
+
+		JavaClassSource newLoader = classOperations.rebuildLoader(original);
+		MethodSource<JavaClassSource> postMethod = newLoader.getMethod(prefix + "IntField", "TestBean");
+		Assert.assertNotNull("method was deleted", postMethod);
+
+		// ${prefix} method should contain a call to this field method
+		MethodSource<JavaClassSource> caller = newLoader.getMethod(prefix, "TestBean");
+		Assert.assertTrue("preserved method is not called by new generated caller.", caller.getBody().contains(prefix+"IntField"));
 	}
 
 	private void testEditableLoaderMethod(String name) {

@@ -39,10 +39,6 @@ public class FieldOperationsTest {
 
 		Assert.assertNotNull("test field not added", newLoader.getField("intField"));
 		Assert.assertNotNull("withField was not added", newLoader.getMethod("withIntField", Integer.class));
-		Assert.assertNotNull("fromField method was not added", newLoader.getMethod("fromIntField", Integer.class));
-		Assert.assertNotNull("modifyField method was not added", newLoader.getMethod("modifyIntField", Integer.class));
-		Assert.assertNotNull("initializeField method was not added.",
-				newLoader.getMethod("initializeIntField", Integer.class));
 	}
 
 }
