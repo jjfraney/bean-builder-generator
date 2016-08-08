@@ -58,8 +58,10 @@ public class CreateLoaderTest {
 		classOperations.buildLoader(original);
 		JavaClassSource loader = (JavaClassSource) original.getNestedType("Loader");
 		Assert.assertNotNull("loader is not created", original.getNestedType("Loader"));
+
+		// getSuperType does not contain generic parameter
 		String supertype = loader.getSuperType();
-		Assert.assertNotNull("loader does not have correct supertype", supertype.contains("SuperTestBean"));
+		Assert.assertEquals("loader does not have correct supertype", "SuperTestBean.Loader", supertype);
 	}
 
 	@Test

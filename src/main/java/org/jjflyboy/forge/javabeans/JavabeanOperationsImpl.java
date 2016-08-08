@@ -9,11 +9,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Generated;
 
 import org.jboss.forge.roaster.Roaster;
-import org.jboss.forge.roaster.model.source.AnnotationTargetSource;
-import org.jboss.forge.roaster.model.source.FieldSource;
-import org.jboss.forge.roaster.model.source.JavaClassSource;
-import org.jboss.forge.roaster.model.source.MemberSource;
-import org.jboss.forge.roaster.model.source.MethodSource;
+import org.jboss.forge.roaster.model.source.*;
 
 public class JavabeanOperationsImpl implements JavabeanOperations {
 
@@ -181,7 +177,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 		private String generateStatements() {
 			return getEnclosure().getFields().stream()
-					.map(f -> String.format("modify%1$s(target.%2$s);", capitalize(f.getName()), f.getName()))
+					.map(f -> String.format("modify%1$s(target);", capitalize(f.getName())))
 					.collect(Collectors.joining());
 
 		}
@@ -255,16 +251,16 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 			super(field, "modify", preserved);
 		}
 
+		private final String DESC = "@Generated(" + GENERATED_ANNOTATION_VALUE + ")" +
+				"private void modify${field.name?cap_first}(${javabean.name} target)" +
+				"target.${field.name} = this.${field.name} == null ? target.${field.name} : this.${field.name};" +
+				"}";
 		@Override
 		protected String generate() {
-			return "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
-					"private void modify" + capitalize(getField().getName()) + "(" +
-					getField().getType().getName() + " target) { " +
-					generateBody() +
-					" }";
-		}
-		private String generateBody() {
-			return String.format("target.%1$s = %1$s == null ? target.%1$s : %1$s;", getField().getName());
+			// poor man's templating  :)
+			return DESC.replace("${field.name?cap_first}", capitalize(getField().getName()))
+					.replace("${field.name}", getField().getName())
+					.replace("${javabean.name}", getField().getOrigin().getName());
 		}
 	}
 
@@ -278,7 +274,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		protected String generate() {
 			return "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
 					"private void initialize" + capitalize(getField().getName()) + "(" +
-					getField().getType().getName() + " target) { " +
+					getField().getOrigin().getName() + " target) { " +
 					generateInitializeFieldMethodBody(getField()) + " }";
 		}
 
@@ -306,25 +302,30 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		}
 	}
 
-	private JavaClassSource generateLoader(JavaClassSource javabean, JavaClassSource existingLoader) {
-		JavaClassSource loader = generateClass(c -> {
-			String extendsSuperType = null;
-			if (!"java.lang.Object".equals(javabean.getSuperType())) {
-				extendsSuperType = javabean.getSuperType() + ".Loader<T>";
-			}
+	// we have to compensate for current Roaster behavior: setSuperType results in simple name
+	private static final String SUPERTYPE_HOLDER = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
 
+	private JavaClassSource generateLoader(JavaClassSource javabean, JavaClassSource existingLoader) {
+
+		JavaClassSource loader = generateClass(c -> {
 			c.setAbstract(true).setProtected().setStatic(true).setName("Loader");
-			if (extendsSuperType != null) {
+			c.addTypeVariable().setName("T").setBounds("Loader<T>");
+
+			if (!"java.lang.Object".equals(javabean.getSuperType())) {
+				// replaced before finalizing the Loader
+				String extendsSuperType = SUPERTYPE_HOLDER;
 				c.setSuperType(extendsSuperType);
 			}
-			c.addTypeVariable().setName("T").setBounds("Loader<T>");
 		});
 		final List<MethodSource<JavaClassSource>> preservedMethods = existingLoader == null ? Collections.emptyList() :
 				existingLoader.getMethods().stream().filter(this::isPreserved).collect(Collectors.toList());
 		final List<FieldSource<JavaClassSource>> preservedFields = existingLoader == null ? Collections.emptyList() :
 				existingLoader.getFields().stream().filter(this::isPreserved).collect(Collectors.toList());
 
-		final List<FieldSource<JavaClassSource>> fields = javabean.getFields();
+		final List<FieldSource<JavaClassSource>> fields = javabean.getFields()
+				.stream()
+				.filter(f -> !f.isStatic())
+				.collect(Collectors.toList());
 
 		Function<FieldSource<JavaClassSource>, MemberDescriptor> fieldDescriptor = (f) -> new FieldDescriptor(f, preservedFields);
 		Function<FieldSource<JavaClassSource>, MemberDescriptor> withFieldMethodDescriptor = (f) -> new WithFieldMethodDescriptor(f, preservedMethods);
@@ -360,6 +361,20 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		// for each ${field}, add initialize${field} method in the loader
 		fields.stream().map(initializeFieldMethodDescriptor).map(MemberDescriptor::asString).forEach(loader::addMethod);
 
+		// we want supertype: ${javabean.name}.Loader<T>
+		// roaster's setSuperType(${javabean.name}.Loader<T>) gives supertype of "Loader<T>", WRONG.
+		// roaster's parse from string gives what we want.
+		// a better workaround then this?  A redesign?
+		String superType = loader.getSuperType();
+		if(superType.contains(SUPERTYPE_HOLDER)) {
+			// roaster's parse from string CAN handle a nested supertype
+			String p = javabean.getPackage() + ".";
+			String desiredSupertype = javabean.getSuperType().replace(p, "") + ".Loader<T>";
+
+			String stringified = loader.toString();
+			stringified = stringified.replace(SUPERTYPE_HOLDER, desiredSupertype);
+			loader = Roaster.parse(JavaClassSource.class, stringified);
+		}
 		return loader;
 	}
 
