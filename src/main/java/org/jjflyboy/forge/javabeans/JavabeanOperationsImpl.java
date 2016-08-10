@@ -450,7 +450,8 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 	private JavaClassSource generateBuilder(JavaClassSource javabean, JavaClassSource existingBuilder) {
 		JavaClassSource classSource = generateConcreteLoader("Builder");
-		classSource.addMethod(new BuildMethodDescriptor(javabean, Collections.emptyList()).asString());
+		String asString = new BuildMethodDescriptor(javabean, Collections.emptyList()).asString();
+		classSource.addMethod(asString);
 		return classSource;
 	}
 
@@ -458,8 +459,9 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		public BuildMethodDescriptor(JavaClassSource enclosure, List<MethodSource<JavaClassSource>> preserved) {
 			super("build", enclosure, preserved);
 		}
-		private final static String DECL = "public ${javabean.name} build() {" +
-				"return initialize(new ${javabean.name});" +
+		private final static String DECL = "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
+				"public ${javabean.name} build() {" +
+				"return initialize(new ${javabean.name}());" +
 				"}";
 		@Override
 		protected String generate() {
@@ -494,7 +496,9 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 			c.setSuperType("Loader<" + name + ">");
 		});
 
-		classSource.addMethod("private  " + name + "()\n {}").setConstructor(true);
+		String decl = "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
+				"private  " + name + "()\n {}";
+		classSource.addMethod(decl).setConstructor(true);
 		return classSource;
 	}
 
