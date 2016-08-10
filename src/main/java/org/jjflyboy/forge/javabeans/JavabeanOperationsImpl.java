@@ -183,7 +183,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 		@Override
 		protected String generate() {
-			String sper = getEnclosure().getSuperType() == null ? "" : "super.from(example);\n";
+			String sper = hasSuperType(getEnclosure()) ? "super.from(example);\n" : "";
 			return "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
 					"public T from(" + getEnclosure().getName() +
 					" example) {\n" +
@@ -220,7 +220,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 		@Override
 		protected String generate() {
-			String suuper = getEnclosure().getSuperType() == null ? "" : "super.initialize(target);";
+			String suuper = hasSuperType(getEnclosure()) ? "super.modify(target);" : "";
 			String statements = suuper + generateStatements();
 			return DESC.replace("${javabean.name}", getEnclosure().getName()).replace("${statements}", statements);
 		}
@@ -253,7 +253,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 		@Override
 		protected String generate() {
-			String suuper = getEnclosure().getSuperType() == null ? "" : "super.initialize(target);";
+			String suuper = hasSuperType(getEnclosure()) ? "super.initialize(target);" : "";
 			String statements = suuper + generateStatements();
 			return DESC.replace("${javabean.name}", getEnclosure().getName()).replace("${statements}", statements);
 		}
@@ -377,7 +377,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 			c.setAbstract(true).setProtected().setStatic(true).setName("Loader");
 			c.addTypeVariable().setName("T").setBounds("Loader<T>");
 
-			if (!"java.lang.Object".equals(javabean.getSuperType())) {
+			if (hasSuperType(javabean)) {
 				// replaced before finalizing the Loader
 				String extendsSuperType = SUPERTYPE_HOLDER;
 				c.setSuperType(extendsSuperType);
@@ -443,6 +443,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		return loader;
 	}
 
+
 	private JavaClassSource findNestedClass(JavaClassSource javabean, String name) {
 		return (JavaClassSource) javabean.getNestedType(name);
 	}
@@ -507,6 +508,10 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 	private boolean isPreserved(AnnotationTargetSource<JavaClassSource, ?> at) {
 		return !isGenerated(at);
+	}
+
+	private boolean hasSuperType(JavaClassSource javabean) {
+		return !"java.lang.Object".equals(javabean.getSuperType());
 	}
 
 	private void addAnnotation(AnnotationTargetSource<JavaClassSource, ?> at) {
