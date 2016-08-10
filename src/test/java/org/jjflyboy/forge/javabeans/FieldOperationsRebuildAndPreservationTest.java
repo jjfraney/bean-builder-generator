@@ -39,7 +39,7 @@ public class FieldOperationsRebuildAndPreservationTest {
 	public void before() {
 		original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
 		original.addField("Integer intField");
-		loader = classOperations.buildLoader(original);
+		loader = original.addNestedType(classOperations.buildLoader(original));
 	}
 
 	@Test

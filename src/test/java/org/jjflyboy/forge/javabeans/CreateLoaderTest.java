@@ -35,8 +35,7 @@ public class CreateLoaderTest {
 	@Test
 	public void testCreateLoader() {
 		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
-		classOperations.buildLoader(original);
-		JavaClassSource loader = (JavaClassSource) original.getNestedType("Loader");
+		JavaClassSource loader = classOperations.buildLoader(original);
 		Assert.assertNotNull("loader is not created", loader);
 		String supertype = loader.getSuperType();
 		Assert.assertNotNull("loader has supertype", !"java.lang.Object".equals(supertype));
@@ -55,8 +54,8 @@ public class CreateLoaderTest {
 	public void testCreateLoaderWithSuperClass() {
 		JavaClassSource original = (JavaClassSource) Roaster.parse("public class TestBean extends SuperTestBean {}");
 		original.setPackage("org.sample");
-		classOperations.buildLoader(original);
-		JavaClassSource loader = (JavaClassSource) original.getNestedType("Loader");
+
+		JavaClassSource loader = original.addNestedType(classOperations.buildLoader(original));
 		Assert.assertNotNull("loader is not created", original.getNestedType("Loader"));
 
 		// getSuperType does not contain generic parameter
@@ -67,7 +66,6 @@ public class CreateLoaderTest {
 	@Test
 	public void annotatesWithGenerated() {
 		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
-		classOperations.buildLoader(original);
 		JavaClassSource loader = classOperations.buildLoader(original);
 		Assert.assertNotNull("didn't mark 'Generated' annotation", loader.getAnnotation(Generated.class));
 	}
@@ -89,7 +87,7 @@ public class CreateLoaderTest {
 	public void observesAbsentGeneratedAnnotation() {
 		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
 		FieldSource<JavaClassSource> testField = original.addField("int testField");
-		JavaClassSource firstLoader = classOperations.buildLoader(original);
+		JavaClassSource firstLoader = original.addNestedType(classOperations.buildLoader(original));
 		Assert.assertNotNull("test field not in loader", firstLoader.getField("testField"));
 
 		firstLoader.removeAnnotation(firstLoader.getAnnotation(Generated.class));

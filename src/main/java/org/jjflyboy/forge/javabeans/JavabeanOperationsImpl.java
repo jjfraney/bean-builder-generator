@@ -32,9 +32,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		// we use Generated to mark our elements
 		javabean.addImport(Generated.class);
 
-		final JavaClassSource loader = generateLoader(javabean, existingLoader);
-		javabean.removeNestedType(existingLoader);
-		return javabean.addNestedType(loader);
+		return generateLoader(javabean, existingLoader);
 	}
 
 	@Override
@@ -51,9 +49,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 			}
 		}
 
-		final JavaClassSource builder = generateBuilder(javabean, existingBuilder);
-		javabean.removeNestedType(existingBuilder);
-		return javabean.addNestedType(builder);
+		return generateBuilder(javabean, existingBuilder);
 	}
 
 	@Override
@@ -70,9 +66,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 			}
 		}
 
-		final JavaClassSource updater = generateUpdater(javabean, existingUpdater);
-		javabean.removeNestedType(existingUpdater);
-		return javabean.addNestedType(updater);
+		return generateUpdater(javabean, existingUpdater);
 	}
 	private interface MemberDescriptor {
 
