@@ -35,43 +35,43 @@ public class CreateJavabeanMethodsTest {
 	@Test
 	public void testCreateCtors() {
 		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
-		List<String> ctors = classOperations.rebuildCtors(original);
+		List<MethodSource<JavaClassSource>> ctors = classOperations.rebuildCtors(original);
 		Assert.assertEquals("wrong number of method definitions returned.", 2, ctors.size());
-		String privateCtor = ctors.stream().filter(s -> s.contains("private TestBean")).findAny().orElse(null);
+		MethodSource<JavaClassSource> privateCtor = ctors.stream().filter(s -> s.isPrivate()).filter(s -> "TestBean".equals(s.getName())).findAny().orElse(null);
 		Assert.assertNotNull("private ctor not found.", privateCtor);
 
-		String publicCtor = ctors.stream().filter(s -> s.contains("public TestBean")).findAny().orElse(null);
+		MethodSource<JavaClassSource> publicCtor = ctors.stream().filter(s -> s.isPublic()).filter(s -> "TestBean".equals(s.getName())).findAny().orElse(null);
 		Assert.assertNotNull("public ctor not found.", publicCtor);
 	}
 	@Test
 	public void testPreserveCtors() {
 		// test setup: build original with ctors for preservation
 		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
-		List<String> ctors = classOperations.rebuildCtors(original);
+		List<MethodSource<JavaClassSource>> ctors = classOperations.rebuildCtors(original);
 
 		// add methods without @Generated to the original javabean.
-		List<MethodSource<JavaClassSource>> pm = ctors.stream().map(s -> original.addMethod(s))
+		List<MethodSource<JavaClassSource>> pm = ctors.stream()
 				.map(m -> {m.removeAllAnnotations(); return m;})
 				.collect(Collectors.toList());
 		pm.stream().forEach(m -> Assert.assertEquals("method still has annotation " + m.getName(), 0, m.getAnnotations().size()));
 
 
 		// now...run the test to see if the methods were preserved
-		List<String> newCtors = classOperations.rebuildCtors(original);
+		List<MethodSource<JavaClassSource>> newCtors = classOperations.rebuildCtors(original);
 		pm.stream().forEach(m -> Assert.assertEquals("method was not preserved " + m.getName(), 0, m.getAnnotations().size()));
 	}
 
 	@Test
 	public void testCreateBuilderMethod() {
 		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
-		String method = classOperations.rebuildBuilderMethod(original);
-		Assert.assertTrue("didn't create builder method", method.contains("public static Builder builder()"));
+		MethodSource<JavaClassSource> method = classOperations.rebuildBuilderMethod(original);
+		Assert.assertTrue("didn't create builder method", method.toString().contains("public static Builder builder()"));
 	}
 	@Test
 	public void testCreateUpdaterMethod() {
 		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
-		String method = classOperations.rebuildUpdaterMethod(original);
-		Assert.assertTrue("didn't create updater method", method.contains("public static Updater updater()"));
+		MethodSource<JavaClassSource> method = classOperations.rebuildUpdaterMethod(original);
+		Assert.assertTrue("didn't create updater method", method.toString().contains("public static Updater updater()"));
 	}
 
 }

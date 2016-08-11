@@ -3,6 +3,7 @@ package org.jjflyboy.forge.javabeans;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -17,50 +18,72 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 
 	@Override
-	public List<String> rebuildCtors(JavaClassSource javabean) {
-		List<String> result = new ArrayList<>();
+	public List<MethodSource<JavaClassSource>> rebuildCtors(JavaClassSource javabean) {
+		List<MethodSource<JavaClassSource>> result = new ArrayList<>();
 
 		MethodSource<JavaClassSource> privateCtor = javabean.getMethod(javabean.getName(), "Builder");
 
 		// private ctor to call builder.initialize(this)
 		if(privateCtor == null || !isPreserved(privateCtor)) {
+			if(privateCtor != null) {
+				javabean.removeMethod(privateCtor);
+			}
+
 			String decl = "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
 					"private ${javabean.name}(Builder builder) {builder.initialize(this); }";
 			String d = decl.replace("${javabean.name}", javabean.getName());
-			result.add(d);
+
+			MethodSource<JavaClassSource> method = javabean.addMethod(d);
+			result.add(method);
 		} else {
-			result.add(privateCtor.toString());
+			result.add(privateCtor);
 		}
 
 		MethodSource<JavaClassSource> defaultCtor = javabean.getMethod(javabean.getName());
 
 		// public default ctor (because we add one of our own and still need this)
 		if(defaultCtor == null || !isPreserved(defaultCtor)) {
+			if(defaultCtor != null) {
+				javabean.removeMethod(defaultCtor);
+			}
+
 			String decl = "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
 					"public ${javabean.name}() {}";
 			String d = decl.replace("${javabean.name}", javabean.getName());
-			result.add(d);
+
+			MethodSource<JavaClassSource> method = javabean.addMethod(d);
+			result.add(method);
+		} else {
+			result.add(defaultCtor);
 		}
 
 		return result;
 	}
 
-	public String rebuildBuilderMethod(JavaClassSource javabean) {
+	@Override
+	public MethodSource<JavaClassSource> rebuildBuilderMethod(JavaClassSource javabean) {
 		return rebuildMaker(javabean, "builder");
 	}
-	public String rebuildUpdaterMethod(JavaClassSource javabean) {
+
+	@Override
+	public MethodSource<JavaClassSource> rebuildUpdaterMethod(JavaClassSource javabean) {
 		return rebuildMaker(javabean, "updater");
 	}
-	private String rebuildMaker(JavaClassSource javabean, String name) {
-		String result;
+	private MethodSource<JavaClassSource> rebuildMaker(JavaClassSource javabean, String name) {
+		MethodSource<JavaClassSource> result;
 		String typeName = capitalize(name);
 		MethodSource<JavaClassSource> method = javabean.getMethod(name);
 		if(method == null || !isPreserved(method)) {
+			if(method != null) {
+				javabean.removeMethod(method);
+			}
 			String decl = "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
 					"public static ${type.name} ${name}() { return new ${type.name}();}";
-			result = decl.replace("${type.name}", typeName).replace("${name}", name);
+			String d = decl.replace("${type.name}", typeName).replace("${name}", name);
+
+			result = javabean.addMethod(d);
 		} else {
-			result = method.toString();
+			result = method;
 		}
 		return result;
 	}
@@ -71,14 +94,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 	@Override
 	public JavaClassSource rebuildLoader(JavaClassSource javabean) {
-		JavaClassSource existingLoader = findNestedClass(javabean, "Loader");
-		if (existingLoader != null) {
-			if (isPreserved(existingLoader)) {
-				return existingLoader;
-			}
-		}
-
-		return generateLoader(javabean, existingLoader);
+		return generateNestedClass(javabean, "Loader", this::generateLoader);
 	}
 
 	@Override
@@ -88,14 +104,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 	@Override
 	public JavaClassSource rebuildBuilder(JavaClassSource javabean) {
-		JavaClassSource existingBuilder = findNestedClass(javabean, "Builder");
-		if(existingBuilder != null) {
-			if(isPreserved(existingBuilder)) {
-				return existingBuilder;
-			}
-		}
-
-		return generateBuilder(javabean, existingBuilder);
+		return generateNestedClass(javabean, "Builder", this::generateBuilder);
 	}
 
 	@Override
@@ -105,15 +114,25 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 	@Override
 	public JavaClassSource rebuildUpdater(JavaClassSource javabean) {
-		JavaClassSource existingUpdater = findNestedClass(javabean, "Updater");
-		if(existingUpdater != null) {
-			if(isPreserved(existingUpdater)) {
-				return existingUpdater;
+		return generateNestedClass(javabean, "Updater", this::generateUpdater);
+	}
+
+
+	private JavaClassSource generateNestedClass(JavaClassSource javabean, String name, BiFunction<JavaClassSource, JavaClassSource, JavaClassSource> generator) {
+		JavaClassSource existingNestedClass = findNestedClass(javabean, name);
+		if (existingNestedClass != null) {
+			if (isPreserved(existingNestedClass)) {
+				return existingNestedClass;
 			}
 		}
 
-		return generateUpdater(javabean, existingUpdater);
+		JavaClassSource newNestedClass =  generator.apply(javabean, existingNestedClass);
+		javabean.removeNestedType(existingNestedClass);
+		javabean.addNestedType(newNestedClass);
+		javabean.addImport(Generated.class);
+		return newNestedClass;
 	}
+
 	private interface MemberDescriptor {
 
 		String asString();

@@ -1,6 +1,7 @@
 package org.jjflyboy.forge.javabeans;
 
 import org.jboss.forge.roaster.model.source.JavaClassSource;
+import org.jboss.forge.roaster.model.source.MethodSource;
 
 import java.util.List;
 
@@ -31,7 +32,7 @@ interface JavabeanOperations {
 	JavaClassSource buildUpdater(JavaClassSource javabean);
 	JavaClassSource rebuildUpdater(JavaClassSource javabean);
 
-	List<String> rebuildCtors(JavaClassSource javabean);
-	String rebuildBuilderMethod(JavaClassSource javabean);
-	String rebuildUpdaterMethod(JavaClassSource javabean);
+	List<MethodSource<JavaClassSource>> rebuildCtors(JavaClassSource javabean);
+	MethodSource<JavaClassSource> rebuildBuilderMethod(JavaClassSource javabean);
+	MethodSource<JavaClassSource> rebuildUpdaterMethod(JavaClassSource javabean);
 }
