@@ -6,12 +6,12 @@ import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Generated;
 
 import org.jboss.forge.roaster.Roaster;
-import org.jboss.forge.roaster.model.Type;
 import org.jboss.forge.roaster.model.source.*;
 
 public class JavabeanOperationsImpl implements JavabeanOperations {
@@ -253,6 +253,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 		private String generateStatements() {
 			return getEnclosure().getFields().stream()
+					.filter(isProperty)
 					.map(f -> generateStatement(f))
 					.collect(Collectors.joining());
 		}
@@ -286,6 +287,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 		private String generateStatements() {
 			return getEnclosure().getFields().stream()
+					.filter(isProperty)
 					.map(f -> generateStatement(f))
 					.collect(Collectors.joining());
 		}
@@ -319,6 +321,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 		private String generateStatements() {
 			return getEnclosure().getFields().stream()
+					.filter(isProperty)
 					.map(f -> generateStatement(f))
 					.collect(Collectors.joining());
 
@@ -449,7 +452,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 		final List<FieldSource<JavaClassSource>> genFields = javabean.getFields()
 				.stream()
-				.filter(f -> !f.isStatic())
+				.filter(isProperty)
 				.filter(f -> ! preservedFields.contains(f))
 				.collect(Collectors.toList());
 
@@ -502,6 +505,15 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		return loader;
 	}
 
+
+	/**
+	 * true if the the field can be identified as input for generation.
+	 * @param field
+	 * @return
+	 */
+	private Predicate<FieldSource<JavaClassSource>> isProperty = f -> {
+		return ! f.isStatic();
+	};
 
 	private JavaClassSource findNestedClass(JavaClassSource javabean, String name) {
 		return (JavaClassSource) javabean.getNestedType(name);
