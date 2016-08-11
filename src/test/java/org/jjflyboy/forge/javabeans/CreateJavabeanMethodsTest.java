@@ -33,32 +33,27 @@ public class CreateJavabeanMethodsTest {
 	private JavabeanOperations classOperations;
 
 	@Test
-	public void testCreateCtors() {
+	public void testCreateCtorsUsesCompilerDefault() {
 		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
 		List<MethodSource<JavaClassSource>> ctors = classOperations.rebuildCtors(original);
-		Assert.assertEquals("wrong number of method definitions returned.", 2, ctors.size());
-		MethodSource<JavaClassSource> privateCtor = ctors.stream().filter(s -> s.isPrivate()).filter(s -> "TestBean".equals(s.getName())).findAny().orElse(null);
-		Assert.assertNotNull("private ctor not found.", privateCtor);
-
-		MethodSource<JavaClassSource> publicCtor = ctors.stream().filter(s -> s.isPublic()).filter(s -> "TestBean".equals(s.getName())).findAny().orElse(null);
-		Assert.assertNotNull("public ctor not found.", publicCtor);
+		Assert.assertEquals("wrong number of method definitions returned.", 0, ctors.size());
 	}
 	@Test
-	public void testPreserveCtors() {
-		// test setup: build original with ctors for preservation
+	public void testCreatePrivateDefaultCtor() {
 		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
+		original.addMethod("public TestBean(Integer first) { }").setConstructor(true);
 		List<MethodSource<JavaClassSource>> ctors = classOperations.rebuildCtors(original);
+		Assert.assertEquals("wrong number of method definitions returned.", 1, ctors.size());
 
-		// add methods without @Generated to the original javabean.
-		List<MethodSource<JavaClassSource>> pm = ctors.stream()
-				.map(m -> {m.removeAllAnnotations(); return m;})
-				.collect(Collectors.toList());
-		pm.stream().forEach(m -> Assert.assertEquals("method still has annotation " + m.getName(), 0, m.getAnnotations().size()));
-
-
-		// now...run the test to see if the methods were preserved
-		List<MethodSource<JavaClassSource>> newCtors = classOperations.rebuildCtors(original);
-		pm.stream().forEach(m -> Assert.assertEquals("method was not preserved " + m.getName(), 0, m.getAnnotations().size()));
+		MethodSource<JavaClassSource> dfltCtor = ctors.stream().filter(s -> s.isPrivate()).filter(s -> "TestBean".equals(s.getName())).findAny().orElse(null);
+		Assert.assertNotNull("new private default ctor not found.", dfltCtor);
+	}
+	@Test
+	public void testPreservesPublicDefaultCtor() {
+		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
+		original.addMethod("public TestBean() { }").setConstructor(true);
+		List<MethodSource<JavaClassSource>> ctors = classOperations.rebuildCtors(original);
+		Assert.assertEquals("wrong number of method definitions returned.", 0, ctors.size());
 	}
 
 	@Test

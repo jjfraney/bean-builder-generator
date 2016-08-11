@@ -19,42 +19,38 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 	@Override
 	public List<MethodSource<JavaClassSource>> rebuildCtors(JavaClassSource javabean) {
+
+		// Builder needs a default ctor...only.
+
 		List<MethodSource<JavaClassSource>> result = new ArrayList<>();
 
-		MethodSource<JavaClassSource> privateCtor = javabean.getMethod(javabean.getName(), "Builder");
+		List<MethodSource<JavaClassSource>> allCtors = javabean.getMethods()
+				.stream()
+				.filter(f -> f.getName().equals(javabean.getName()))
+				.collect(Collectors.toList());
 
-		// private ctor to call builder.initialize(this)
-		if(privateCtor == null || !isPreserved(privateCtor)) {
-			if(privateCtor != null) {
-				javabean.removeMethod(privateCtor);
+		// if any ctors exist, we may need to generate one.
+		if(allCtors.size() > 0) {
+			MethodSource<JavaClassSource> defaultCtor = allCtors
+					.stream()
+					.filter(f -> f.getParameters().size() == 0)
+					.findFirst()
+					.orElse(null);
+
+			// if there is not a default ctor, or it had been pre-generated.
+			if (defaultCtor == null || !isPreserved(defaultCtor)) {
+				if (defaultCtor != null) {
+					javabean.removeMethod(defaultCtor);
+				}
+
+				// generate a default ctor...private to be polite.
+				String decl = "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
+						"private ${javabean.name}() {}";
+				String d = decl.replace("${javabean.name}", javabean.getName());
+
+				MethodSource<JavaClassSource> method = javabean.addMethod(d);
+				result.add(method);
 			}
-
-			String decl = "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
-					"private ${javabean.name}(Builder builder) {builder.initialize(this); }";
-			String d = decl.replace("${javabean.name}", javabean.getName());
-
-			MethodSource<JavaClassSource> method = javabean.addMethod(d);
-			result.add(method);
-		} else {
-			result.add(privateCtor);
-		}
-
-		MethodSource<JavaClassSource> defaultCtor = javabean.getMethod(javabean.getName());
-
-		// public default ctor (because we add one of our own and still need this)
-		if(defaultCtor == null || !isPreserved(defaultCtor)) {
-			if(defaultCtor != null) {
-				javabean.removeMethod(defaultCtor);
-			}
-
-			String decl = "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
-					"public ${javabean.name}() {}";
-			String d = decl.replace("${javabean.name}", javabean.getName());
-
-			MethodSource<JavaClassSource> method = javabean.addMethod(d);
-			result.add(method);
-		} else {
-			result.add(defaultCtor);
 		}
 
 		return result;
