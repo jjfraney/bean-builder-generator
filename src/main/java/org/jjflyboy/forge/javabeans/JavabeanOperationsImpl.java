@@ -1,5 +1,6 @@
 package org.jjflyboy.forge.javabeans;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
@@ -16,6 +17,54 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 
 	@Override
+	public List<String> rebuildCtors(JavaClassSource javabean) {
+		List<String> result = new ArrayList<>();
+
+		MethodSource<JavaClassSource> privateCtor = javabean.getMethod(javabean.getName(), "Builder");
+
+		// private ctor to call builder.initialize(this)
+		if(privateCtor == null || !isPreserved(privateCtor)) {
+			String decl = "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
+					"private ${javabean.name}(Builder builder) {builder.initialize(this); }";
+			String d = decl.replace("${javabean.name}", javabean.getName());
+			result.add(d);
+		} else {
+			result.add(privateCtor.toString());
+		}
+
+		MethodSource<JavaClassSource> defaultCtor = javabean.getMethod(javabean.getName());
+
+		// public default ctor (because we add one of our own and still need this)
+		if(defaultCtor == null || !isPreserved(defaultCtor)) {
+			String decl = "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
+					"public ${javabean.name}() {}";
+			String d = decl.replace("${javabean.name}", javabean.getName());
+			result.add(d);
+		}
+
+		return result;
+	}
+
+	public String rebuildBuilderMethod(JavaClassSource javabean) {
+		return rebuildMaker(javabean, "builder");
+	}
+	public String rebuildUpdaterMethod(JavaClassSource javabean) {
+		return rebuildMaker(javabean, "updater");
+	}
+	private String rebuildMaker(JavaClassSource javabean, String name) {
+		String result;
+		String typeName = capitalize(name);
+		MethodSource<JavaClassSource> method = javabean.getMethod(name);
+		if(method == null || !isPreserved(method)) {
+			String decl = "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
+					"public static ${type.name} ${name}() { return new ${type.name}();}";
+			result = decl.replace("${type.name}", typeName).replace("${name}", name);
+		} else {
+			result = method.toString();
+		}
+		return result;
+	}
+	@Override
 	public JavaClassSource buildLoader(JavaClassSource javabean) {
 		return rebuildLoader(javabean);
 	}
@@ -28,9 +77,6 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 				return existingLoader;
 			}
 		}
-
-		// we use Generated to mark our elements
-		javabean.addImport(Generated.class);
 
 		return generateLoader(javabean, existingLoader);
 	}

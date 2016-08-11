@@ -2,6 +2,8 @@ package org.jjflyboy.forge.javabeans;
 
 import org.jboss.forge.roaster.model.source.JavaClassSource;
 
+import java.util.List;
+
 interface JavabeanOperations {
 	String GENERATED_ANNOTATION_VALUE = "\"BeanGenerator\"";
 
@@ -28,4 +30,8 @@ interface JavabeanOperations {
 	JavaClassSource rebuildBuilder(JavaClassSource javabean);
 	JavaClassSource buildUpdater(JavaClassSource javabean);
 	JavaClassSource rebuildUpdater(JavaClassSource javabean);
+
+	List<String> rebuildCtors(JavaClassSource javabean);
+	String rebuildBuilderMethod(JavaClassSource javabean);
+	String rebuildUpdaterMethod(JavaClassSource javabean);
 }
