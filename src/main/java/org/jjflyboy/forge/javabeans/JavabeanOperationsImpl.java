@@ -398,7 +398,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		@Override
 		protected String generate() {
 			return "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
-					"private T with" + capitalize(getField().getName()) + "(" +
+					"public T with" + capitalize(getField().getName()) + "(" +
 					getField().getType().getName() + " " + getField().getName() + ") { " +
 					generateBody() + " }";
 		}
