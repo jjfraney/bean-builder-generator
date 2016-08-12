@@ -25,7 +25,7 @@ public class FieldOperationsTest {
 				JavabeanOperationsImpl.class);
 	}
 
-	@SuppressWarnings("CanBeFinal")
+	@SuppressWarnings({"CanBeFinal", "unused"})
 	@Inject
 	private JavabeanOperations classOperations;
 
@@ -33,7 +33,7 @@ public class FieldOperationsTest {
 	public void testCreateField() {
 		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean")
 				.setPackage("org.sample");
-		classOperations.buildLoader(original);
+		classOperations.rebuildLoader(original);
 		original.addField("Integer intField");
 		JavaClassSource newLoader = classOperations.rebuildLoader(original);
 

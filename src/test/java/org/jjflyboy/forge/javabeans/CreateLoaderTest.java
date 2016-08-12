@@ -1,8 +1,5 @@
 package org.jjflyboy.forge.javabeans;
 
-import javax.annotation.Generated;
-import javax.inject.Inject;
-
 import org.jboss.arquillian.container.test.api.Deployment;
 import org.jboss.arquillian.junit.Arquillian;
 import org.jboss.forge.arquillian.AddonDependencies;
@@ -17,6 +14,9 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import javax.annotation.Generated;
+import javax.inject.Inject;
+
 @RunWith(Arquillian.class)
 public class CreateLoaderTest {
 
@@ -28,14 +28,14 @@ public class CreateLoaderTest {
 				JavabeanOperationsImpl.class);
 	}
 
-	@SuppressWarnings("CanBeFinal")
+	@SuppressWarnings({"CanBeFinal", "unused"})
 	@Inject
 	private JavabeanOperations classOperations;
 
 	@Test
 	public void testCreateLoader() {
 		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
-		JavaClassSource loader = classOperations.buildLoader(original);
+		JavaClassSource loader = classOperations.rebuildLoader(original);
 		Assert.assertNotNull("loader is not created", loader);
 		String supertype = loader.getSuperType();
 		Assert.assertNotNull("loader has supertype", !"java.lang.Object".equals(supertype));
@@ -55,7 +55,7 @@ public class CreateLoaderTest {
 		JavaClassSource original = (JavaClassSource) Roaster.parse("public class TestBean extends SuperTestBean {}");
 		original.setPackage("org.sample");
 
-		JavaClassSource loader = original.addNestedType(classOperations.buildLoader(original));
+		JavaClassSource loader = original.addNestedType(classOperations.rebuildLoader(original));
 		Assert.assertNotNull("loader is not created", original.getNestedType("Loader"));
 
 		// getSuperType does not contain generic parameter
@@ -66,7 +66,7 @@ public class CreateLoaderTest {
 	@Test
 	public void annotatesWithGenerated() {
 		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
-		JavaClassSource loader = classOperations.buildLoader(original);
+		JavaClassSource loader = classOperations.rebuildLoader(original);
 		Assert.assertNotNull("didn't mark 'Generated' annotation", loader.getAnnotation(Generated.class));
 	}
 
@@ -74,11 +74,11 @@ public class CreateLoaderTest {
 	public void observesPresentGeneratedAnnotation() {
 		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
 		FieldSource<JavaClassSource> testField = original.addField("int testField");
-		JavaClassSource firstLoader = classOperations.buildLoader(original);
+		JavaClassSource firstLoader = classOperations.rebuildLoader(original);
 		Assert.assertNotNull("test field not in loader", firstLoader.getField("testField"));
 
 		original.removeField(testField);
-		JavaClassSource secondLoader = classOperations.buildLoader(original);
+		JavaClassSource secondLoader = classOperations.rebuildLoader(original);
 		Assert.assertNull("original loader not overridden", secondLoader.getField("testField"));
 
 	}
@@ -87,12 +87,12 @@ public class CreateLoaderTest {
 	public void observesAbsentGeneratedAnnotation() {
 		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
 		FieldSource<JavaClassSource> testField = original.addField("int testField");
-		JavaClassSource firstLoader = original.addNestedType(classOperations.buildLoader(original));
+		JavaClassSource firstLoader = original.addNestedType(classOperations.rebuildLoader(original));
 		Assert.assertNotNull("test field not in loader", firstLoader.getField("testField"));
 
 		firstLoader.removeAnnotation(firstLoader.getAnnotation(Generated.class));
 		original.removeField(testField);
-		JavaClassSource secondLoader = classOperations.buildLoader(original);
+		JavaClassSource secondLoader = classOperations.rebuildLoader(original);
 		Assert.assertNotNull("original loader has been overridden", secondLoader.getField("testField"));
 
 	}

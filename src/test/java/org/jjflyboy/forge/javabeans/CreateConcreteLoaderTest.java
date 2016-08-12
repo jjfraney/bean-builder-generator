@@ -6,15 +6,12 @@ import org.jboss.forge.arquillian.AddonDependencies;
 import org.jboss.forge.arquillian.AddonDependency;
 import org.jboss.forge.arquillian.archive.AddonArchive;
 import org.jboss.forge.roaster.Roaster;
-import org.jboss.forge.roaster.model.source.FieldSource;
 import org.jboss.forge.roaster.model.source.JavaClassSource;
-import org.jboss.forge.roaster.model.source.MethodSource;
 import org.jboss.shrinkwrap.api.ShrinkWrap;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import javax.annotation.Generated;
 import javax.inject.Inject;
 
 @RunWith(Arquillian.class)
@@ -28,23 +25,23 @@ public class CreateConcreteLoaderTest {
 				JavabeanOperationsImpl.class);
 	}
 
-	@SuppressWarnings("CanBeFinal")
+	@SuppressWarnings({"CanBeFinal", "unused"})
 	@Inject
 	private JavabeanOperations classOperations;
 
 	@Test
 	public void testCreateBuilder() {
 		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
-		classOperations.buildLoader(original);
-		JavaClassSource builder = classOperations.buildBuilder(original);
+		classOperations.rebuildLoader(original);
+		JavaClassSource builder = classOperations.rebuildBuilder(original);
 		Assert.assertNotNull("builder was not created", builder);
 	}
 
 	@Test
 	public void testCreateUpdater() {
 		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
-		classOperations.buildLoader(original);
-		JavaClassSource updater = classOperations.buildUpdater(original);
+		classOperations.rebuildLoader(original);
+		JavaClassSource updater = classOperations.rebuildUpdater(original);
 		Assert.assertNotNull("updater was not created", updater);
 	}
 

@@ -6,6 +6,7 @@ import org.jboss.forge.arquillian.AddonDependencies;
 import org.jboss.forge.arquillian.AddonDependency;
 import org.jboss.forge.arquillian.archive.AddonArchive;
 import org.jboss.forge.roaster.Roaster;
+import org.jboss.forge.roaster.model.VisibilityScoped;
 import org.jboss.forge.roaster.model.source.JavaClassSource;
 import org.jboss.forge.roaster.model.source.MethodSource;
 import org.jboss.shrinkwrap.api.ShrinkWrap;
@@ -15,7 +16,6 @@ import org.junit.runner.RunWith;
 
 import javax.inject.Inject;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RunWith(Arquillian.class)
 public class CreateJavabeanMethodsTest {
@@ -28,32 +28,32 @@ public class CreateJavabeanMethodsTest {
 				JavabeanOperationsImpl.class);
 	}
 
-	@SuppressWarnings("CanBeFinal")
+	@SuppressWarnings({"CanBeFinal", "unused"})
 	@Inject
 	private JavabeanOperations classOperations;
 
 	@Test
-	public void testCreateCtorsUsesCompilerDefault() {
+	public void testCreateConstructorUsesCompilerDefault() {
 		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
-		List<MethodSource<JavaClassSource>> ctors = classOperations.rebuildCtors(original);
-		Assert.assertEquals("wrong number of method definitions returned.", 0, ctors.size());
+		List<MethodSource<JavaClassSource>> constructors = classOperations.rebuildConstructors(original);
+		Assert.assertEquals("wrong number of method definitions returned.", 0, constructors.size());
 	}
 	@Test
-	public void testCreatePrivateDefaultCtor() {
+	public void testCreatePrivateDefaultConstructor() {
 		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
 		original.addMethod("public TestBean(Integer first) { }").setConstructor(true);
-		List<MethodSource<JavaClassSource>> ctors = classOperations.rebuildCtors(original);
-		Assert.assertEquals("wrong number of method definitions returned.", 1, ctors.size());
+		List<MethodSource<JavaClassSource>> constructors = classOperations.rebuildConstructors(original);
+		Assert.assertEquals("wrong number of method definitions returned.", 1, constructors.size());
 
-		MethodSource<JavaClassSource> dfltCtor = ctors.stream().filter(s -> s.isPrivate()).filter(s -> "TestBean".equals(s.getName())).findAny().orElse(null);
-		Assert.assertNotNull("new private default ctor not found.", dfltCtor);
+		MethodSource<JavaClassSource> defaultConstructor = constructors.stream().filter(VisibilityScoped::isPrivate).filter(s -> "TestBean".equals(s.getName())).findAny().orElse(null);
+		Assert.assertNotNull("new private default ctor not found.", defaultConstructor);
 	}
 	@Test
-	public void testPreservesPublicDefaultCtor() {
+	public void testPreservesPublicDefaultConstructor() {
 		JavaClassSource original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
 		original.addMethod("public TestBean() { }").setConstructor(true);
-		List<MethodSource<JavaClassSource>> ctors = classOperations.rebuildCtors(original);
-		Assert.assertEquals("wrong number of method definitions returned.", 0, ctors.size());
+		List<MethodSource<JavaClassSource>> constructors = classOperations.rebuildConstructors(original);
+		Assert.assertEquals("wrong number of method definitions returned.", 0, constructors.size());
 	}
 
 	@Test

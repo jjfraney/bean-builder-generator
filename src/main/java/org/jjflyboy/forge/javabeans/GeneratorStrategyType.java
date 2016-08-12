@@ -3,7 +3,7 @@ package org.jjflyboy.forge.javabeans;
 /**
  * @author jfraney
  */
-public enum GeneratorStategyType {
+public enum GeneratorStrategyType {
 	BUILDER_ONLY, BUILDER_AND_UPDATER, LOADER_ONLY;
 
 	public String toString() {

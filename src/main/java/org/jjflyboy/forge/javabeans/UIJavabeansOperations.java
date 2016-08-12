@@ -27,28 +27,36 @@ import java.util.*;
 import java.util.stream.StreamSupport;
 
 
-public class UIJavabeansOperations extends AbstractProjectCommand {
+@SuppressWarnings("unused")
+class UIJavabeansOperations extends AbstractProjectCommand {
 
+	@SuppressWarnings("CanBeFinal")
 	@Inject
 	@WithAttributes(label = "targets", required = true)
 	private UISelectMany<String> targets;
 	// due to forge bug, cannot use: private UISelectMany<JavaResource> targets;
 	// using this map to compensate for the forge bug above
+	@SuppressWarnings("CanBeFinal")
 	private Map<String, JavaSource<?>> targetMap = new HashMap<>();
 
+	@SuppressWarnings("CanBeFinal")
 	@Inject
-	@WithAttributes(label = "strategy", required = false)
-	private UISelectOne<GeneratorStategyType> generatorStategy;
+	@WithAttributes(label = "strategy")
+	private UISelectOne<GeneratorStrategyType> generatorStrategy;
 
+	@SuppressWarnings("CanBeFinal")
 	@Inject
 	private ProjectOperations projectOperations;
 
+	@SuppressWarnings("CanBeFinal")
 	@Inject
 	private BuilderOnlyGenerateStrategy builderOnlyStrategy;
 
+	@SuppressWarnings("CanBeFinal")
 	@Inject
 	private BuilderAndUpdaterGenerateStrategy builderAndUpdaterStrategy;
 
+	@SuppressWarnings("CanBeFinal")
 	@Inject
 	private LoaderOnlyGenerateStrategy loaderOnlyStrategy;
 
@@ -76,11 +84,11 @@ public class UIJavabeansOperations extends AbstractProjectCommand {
 		Collections.sort(t);
 		targets.setValueChoices(t);
 
-		generatorStategy.setDefaultValue(GeneratorStategyType.BUILDER_ONLY);
-		generatorStategy.setValueChoices(Arrays.asList(GeneratorStategyType.values()));
+		generatorStrategy.setDefaultValue(GeneratorStrategyType.BUILDER_ONLY);
+		generatorStrategy.setValueChoices(Arrays.asList(GeneratorStrategyType.values()));
 		builder
 		.add(targets)
-		.add(generatorStategy)
+		.add(generatorStrategy)
 		;
 	}
 
@@ -95,7 +103,7 @@ public class UIJavabeansOperations extends AbstractProjectCommand {
 				.map(s -> targetMap.get(s))
 				.filter(c -> c != null && c.isClass())
 				.map(c -> strategy.generate((JavaClassSource)c))
-				.flatMap(cs -> cs.stream())
+				.flatMap(Collection::stream)
 				.forEach(c -> writeJavaUnit(javaSourceFacet, c));
 
 		return Results.success("builder generator completed");
@@ -103,7 +111,7 @@ public class UIJavabeansOperations extends AbstractProjectCommand {
 
 	private GenerateStrategy pickStrategy() {
 		GenerateStrategy strategy = builderOnlyStrategy;
-		switch(generatorStategy.getValue()) {
+		switch(generatorStrategy.getValue()) {
 			case BUILDER_ONLY:
 			default:
 				break;
@@ -136,6 +144,7 @@ public class UIJavabeansOperations extends AbstractProjectCommand {
 		return true;
 	}
 
+	@SuppressWarnings("CanBeFinal")
 	@Inject
 	private ProjectFactory projectFactory;
 

@@ -9,7 +9,9 @@ import java.util.List;
 /**
  * @author jfraney
  */
+@SuppressWarnings("unused")
 public class LoaderOnlyGenerateStrategy implements GenerateStrategy {
+	@SuppressWarnings("CanBeFinal")
 	@Inject
 	private JavabeanOperations operations;
 

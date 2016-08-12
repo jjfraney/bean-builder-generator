@@ -28,7 +28,7 @@ public class FieldOperationsRebuildAndPreservationTest {
 				JavabeanOperationsImpl.class);
 	}
 
-	@SuppressWarnings("CanBeFinal")
+	@SuppressWarnings({"CanBeFinal", "unused"})
 	@Inject
 	private JavabeanOperations classOperations;
 
@@ -39,7 +39,7 @@ public class FieldOperationsRebuildAndPreservationTest {
 	public void before() {
 		original = Roaster.create(JavaClassSource.class).setName("TestBean").setPackage("org.sample");
 		original.addField("Integer intField");
-		loader = original.addNestedType(classOperations.buildLoader(original));
+		loader = original.addNestedType(classOperations.rebuildLoader(original));
 	}
 
 	@Test
@@ -127,7 +127,7 @@ public class FieldOperationsRebuildAndPreservationTest {
 		Assert.assertEquals(name + " method's body was not overwritten.", former, postRebuild);
 	}
 
-	private void testEditableLoaderFieldMethod(String prefix) {
+	private void testEditableLoaderFieldMethod(@SuppressWarnings("SameParameterValue") String prefix) {
 		MethodSource<JavaClassSource> method = loader.getMethod(prefix + "IntField", Integer.class);
 		method.removeAllAnnotations();
 		method.setBody("");
@@ -140,8 +140,8 @@ public class FieldOperationsRebuildAndPreservationTest {
 	}
 
 	private void testPreservedUserDefinedLoaderFieldMethod(String prefix) {
-		String decl = "private void ${prefix}IntField(TestBean target) {}".replace("${prefix}", prefix);
-		MethodSource<JavaClassSource> method = loader.addMethod(decl);
+		String declarationFormat = "private void ${prefix}IntField(TestBean target) {}".replace("${prefix}", prefix);
+		loader.addMethod(declarationFormat);
 
 		JavaClassSource newLoader = classOperations.rebuildLoader(original);
 		MethodSource<JavaClassSource> postMethod = newLoader.getMethod(prefix + "IntField", "TestBean");

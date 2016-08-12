@@ -18,35 +18,35 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 
 	@Override
-	public List<MethodSource<JavaClassSource>> rebuildCtors(JavaClassSource javabean) {
+	public List<MethodSource<JavaClassSource>> rebuildConstructors(JavaClassSource javabean) {
 
-		// Builder needs a default ctor...only.
+		// Builder needs a default constructor...only.
 
 		List<MethodSource<JavaClassSource>> result = new ArrayList<>();
 
-		List<MethodSource<JavaClassSource>> allCtors = javabean.getMethods()
+		List<MethodSource<JavaClassSource>> allConstructors = javabean.getMethods()
 				.stream()
 				.filter(f -> f.getName().equals(javabean.getName()))
 				.collect(Collectors.toList());
 
-		// if any ctors exist, we may need to generate one.
-		if(allCtors.size() > 0) {
-			MethodSource<JavaClassSource> defaultCtor = allCtors
+		// if any constructors exist, we may need to generate one.
+		if(allConstructors.size() > 0) {
+			MethodSource<JavaClassSource> defaultConstructor = allConstructors
 					.stream()
 					.filter(f -> f.getParameters().size() == 0)
 					.findFirst()
 					.orElse(null);
 
-			// if there is not a default ctor, or it had been pre-generated.
-			if (defaultCtor == null || !isPreserved(defaultCtor)) {
-				if (defaultCtor != null) {
-					javabean.removeMethod(defaultCtor);
+			// if there is not a default constructor, or it had been pre-generated.
+			if (defaultConstructor == null || !isPreserved(defaultConstructor)) {
+				if (defaultConstructor != null) {
+					javabean.removeMethod(defaultConstructor);
 				}
 
 				// generate a default ctor...private to be polite.
-				String decl = "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
+				String declarationFormat = "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
 						"private ${javabean.name}() {}";
-				String d = decl.replace("${javabean.name}", javabean.getName());
+				String d = declarationFormat.replace("${javabean.name}", javabean.getName());
 
 				MethodSource<JavaClassSource> method = javabean.addMethod(d);
 				result.add(method);
@@ -73,19 +73,15 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 			if(method != null) {
 				javabean.removeMethod(method);
 			}
-			String decl = "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
+			String declarationFormat = "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
 					"public static ${type.name} ${name}() { return new ${type.name}();}";
-			String d = decl.replace("${type.name}", typeName).replace("${name}", name);
+			String d = declarationFormat.replace("${type.name}", typeName).replace("${name}", name);
 
 			result = javabean.addMethod(d);
 		} else {
 			result = method;
 		}
 		return result;
-	}
-	@Override
-	public JavaClassSource buildLoader(JavaClassSource javabean) {
-		return rebuildLoader(javabean);
 	}
 
 	@Override
@@ -94,18 +90,8 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 	}
 
 	@Override
-	public JavaClassSource buildBuilder(JavaClassSource javabean) {
-		return rebuildBuilder(javabean);
-	}
-
-	@Override
 	public JavaClassSource rebuildBuilder(JavaClassSource javabean) {
 		return generateNestedClass(javabean, "Builder", this::generateBuilder);
-	}
-
-	@Override
-	public JavaClassSource buildUpdater(JavaClassSource javabean) {
-		return rebuildUpdater(javabean);
 	}
 
 	@Override
@@ -132,8 +118,6 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 	private interface MemberDescriptor {
 
 		String asString();
-
-		boolean isGenerated();
 	}
 
 	private abstract class AbstractMemberDescriptor<T extends MemberSource<JavaClassSource, ?>>
@@ -143,11 +127,6 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		@Override
 		public String asString() {
 			return existing == null ? generate() : existing.toString();
-		}
-
-		@Override
-		public boolean isGenerated() {
-			return existing == null;
 		}
 
 		protected abstract String generate();
@@ -185,26 +164,26 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		final JavaClassSource enclosure;
 		final List<MethodSource<JavaClassSource>> preserved;
 		final String name;
-		public MethodDescriptor(String name, JavaClassSource enclosure, List<MethodSource<JavaClassSource>> preserved) {
+		MethodDescriptor(String name, JavaClassSource enclosure, List<MethodSource<JavaClassSource>> preserved) {
 			existing = preserved.stream().filter(m -> m.getName().equals(name)).findFirst().orElse(null);
 			this.enclosure = enclosure;
 			this.preserved = preserved;
 			this.name = name;
 		}
-		public JavaClassSource getEnclosure() {
+		JavaClassSource getEnclosure() {
 			return enclosure;
 		}
-		protected List<MethodSource<JavaClassSource>> getPreserved() {
+		List<MethodSource<JavaClassSource>> getPreserved() {
 			return preserved;
 		}
 
 		/**
 		 * get the field method from the preserved list, or null.  The field method is named ${name}${field.name} and
 		 * has a single parameter of the target bean's type.
-		 * @param field
-		 * @return
+		 * @param field the field related to the desired method
+		 * @return method for the field
 		 */
-		protected MethodSource<JavaClassSource> getPreservedFieldMethod(FieldSource<JavaClassSource> field) {
+		MethodSource<JavaClassSource> getPreservedFieldMethod(FieldSource<JavaClassSource> field) {
 			return getPreserved().stream()
 					.filter(m -> isFieldMethod(m, field))
 					.findAny().orElse(null);
@@ -219,30 +198,30 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		/**
 		 * return a generated statement, using the call descriptor to call a preserved method (if any) or
 		 * the inline descriptor
-		 * @param field
-		 * @param inlineDesc
-		 * @param callDesc
-		 * @return
+		 * @param field related field for statement generation
+		 * @param inlineDesc inline statement descriptor
+		 * @param callDesc method call descriptor
+		 * @return a string with java statement
 		 */
 
-		protected String generateStatement(FieldSource<JavaClassSource> field, String inlineDesc, String callDesc) {
+		String generateStatement(FieldSource<JavaClassSource> field, String inlineDesc, String callDesc) {
 			MethodSource<JavaClassSource> method = getPreservedFieldMethod(field);
 			return method == null ? inlineDesc.replace("${field.name}", field.getName())
 					: callDesc.replace("${method.name}", method.getName());
 		}
 	}
 	private class FromMethodDescriptor extends MethodDescriptor {
-		public FromMethodDescriptor(JavaClassSource enclosure, List<MethodSource<JavaClassSource>> preserved) {
+		FromMethodDescriptor(JavaClassSource enclosure, List<MethodSource<JavaClassSource>> preserved) {
 			super("from", enclosure, preserved);
 		}
 
 		@Override
 		protected String generate() {
-			String sper = hasSuperType(getEnclosure()) ? "super.from(example);\n" : "";
+			String superCall = hasSuperType(getEnclosure()) ? "super.from(example);\n" : "";
 			return "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
 					"public T from(" + getEnclosure().getName() +
 					" example) {\n" +
-					sper +
+					superCall +
 					generateStatements() +
 					"return (T) this;\n}";
 		}
@@ -250,7 +229,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		private String generateStatements() {
 			return getEnclosure().getFields().stream()
 					.filter(isProperty)
-					.map(f -> generateStatement(f))
+					.map(this::generateStatement)
 					.collect(Collectors.joining());
 		}
 
@@ -265,7 +244,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 	}
 
 	private class ModifyMethodDescriptor extends MethodDescriptor {
-		public ModifyMethodDescriptor(JavaClassSource enclosure, List<MethodSource<JavaClassSource>> preserved) {
+		ModifyMethodDescriptor(JavaClassSource enclosure, List<MethodSource<JavaClassSource>> preserved) {
 			super("modify", enclosure, preserved);
 		}
 
@@ -276,15 +255,15 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 		@Override
 		protected String generate() {
-			String suuper = hasSuperType(getEnclosure()) ? "super.modify(target);" : "";
-			String statements = suuper + generateStatements();
+			String superCall = hasSuperType(getEnclosure()) ? "super.modify(target);" : "";
+			String statements = superCall + generateStatements();
 			return DESC.replace("${javabean.name}", getEnclosure().getName()).replace("${statements}", statements);
 		}
 
 		private String generateStatements() {
 			return getEnclosure().getFields().stream()
 					.filter(isProperty)
-					.map(f -> generateStatement(f))
+					.map(this::generateStatement)
 					.collect(Collectors.joining());
 		}
 
@@ -299,7 +278,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 	}
 	private class InitializeMethodDescriptor extends MethodDescriptor {
-		public InitializeMethodDescriptor(JavaClassSource enclosure, List<MethodSource<JavaClassSource>> preserved) {
+		InitializeMethodDescriptor(JavaClassSource enclosure, List<MethodSource<JavaClassSource>> preserved) {
 			super("initialize", enclosure, preserved);
 		}
 
@@ -310,15 +289,15 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 		@Override
 		protected String generate() {
-			String suuper = hasSuperType(getEnclosure()) ? "super.initialize(target);" : "";
-			String statements = suuper + generateStatements();
+			String superCall = hasSuperType(getEnclosure()) ? "super.initialize(target);" : "";
+			String statements = superCall + generateStatements();
 			return DESC.replace("${javabean.name}", getEnclosure().getName()).replace("${statements}", statements);
 		}
 
 		private String generateStatements() {
 			return getEnclosure().getFields().stream()
 					.filter(isProperty)
-					.map(f -> generateStatement(f))
+					.map(this::generateStatement)
 					.collect(Collectors.joining());
 
 		}
@@ -339,18 +318,19 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 	private abstract class FieldMethodDescriptor extends AbstractMemberDescriptor<MethodSource<JavaClassSource>> {
 		private final FieldSource<JavaClassSource> field;
 
-		public FieldMethodDescriptor(FieldSource<JavaClassSource> field, String prefix,
-				List<MethodSource<JavaClassSource>> preserved) {
+		FieldMethodDescriptor(FieldSource<JavaClassSource> field, String prefix,
+							  List<MethodSource<JavaClassSource>> preserved) {
 			this.field = field;
 			String name = prefix + capitalize(getField().getName());
 			existing = preserved.stream().filter(m -> m.getName().equals(name)).findFirst().orElse(null);
 		}
 
-		public FieldSource<JavaClassSource> getField() {
+		FieldSource<JavaClassSource> getField() {
 			return field;
 		}
 	}
 
+	@SuppressWarnings("unused")
 	private class FromFieldMethodDescriptor extends FieldMethodDescriptor {
 		public FromFieldMethodDescriptor(FieldSource<JavaClassSource> field,
 				List<MethodSource<JavaClassSource>> preserved) {
@@ -369,6 +349,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		}
 	}
 
+	@SuppressWarnings("unused")
 	private class ModifyFieldMethodDescriptor extends FieldMethodDescriptor {
 		public ModifyFieldMethodDescriptor(FieldSource<JavaClassSource> field,
 				List<MethodSource<JavaClassSource>> preserved) {
@@ -381,13 +362,14 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 				"}";
 		@Override
 		protected String generate() {
-			// poor man's templating  :)
+			// poor man's templates  :)
 			return DESC.replace("${field.name?cap_first}", capitalize(getField().getName()))
 					.replace("${field.name}", getField().getName())
 					.replace("${javabean.name}", getField().getOrigin().getName());
 		}
 	}
 
+	@SuppressWarnings("unused")
 	private class InitializeFieldMethodDescriptor extends FieldMethodDescriptor {
 		public InitializeFieldMethodDescriptor(FieldSource<JavaClassSource> field,
 				List<MethodSource<JavaClassSource>> preserved) {
@@ -408,8 +390,8 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 	}
 
 	private class WithFieldMethodDescriptor extends FieldMethodDescriptor {
-		public WithFieldMethodDescriptor(FieldSource<JavaClassSource> field,
-				List<MethodSource<JavaClassSource>> preserved) {
+		WithFieldMethodDescriptor(FieldSource<JavaClassSource> field,
+								  List<MethodSource<JavaClassSource>> preserved) {
 			super(field, "with", preserved);
 		}
 
@@ -437,8 +419,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 			if (hasSuperType(javabean)) {
 				// replaced before finalizing the Loader
-				String extendsSuperType = SUPERTYPE_HOLDER;
-				c.setSuperType(extendsSuperType);
+				c.setSuperType(SUPERTYPE_HOLDER);
 			}
 		});
 		final List<MethodSource<JavaClassSource>> preservedMethods = existingLoader == null ? Collections.emptyList() :
@@ -455,21 +436,14 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		Function<FieldSource<JavaClassSource>, MemberDescriptor> fieldDescriptor = (f) -> new FieldDescriptor(f, preservedFields);
 		Function<FieldSource<JavaClassSource>, MemberDescriptor> withFieldMethodDescriptor = (f) -> new WithFieldMethodDescriptor(f, preservedMethods);
 
-		Function<FieldSource<JavaClassSource>, MemberDescriptor> fromFieldMethodDescriptor =
-				(f) -> new FromFieldMethodDescriptor(f, preservedMethods);
-		Function<FieldSource<JavaClassSource>, MemberDescriptor> modifyFieldMethodDescriptor =
-				(f) -> new ModifyFieldMethodDescriptor(f, preservedMethods);
-		Function<FieldSource<JavaClassSource>, MemberDescriptor> initializeFieldMethodDescriptor =
-				(f) -> new InitializeFieldMethodDescriptor(f, preservedMethods);
-
-		// copy all preserved fields to new laoder
-		preservedFields.stream().map((f) -> f.toString()).forEach(loader::addField);
+		// copy all preserved fields to new loader
+		preservedFields.stream().map(Object::toString).forEach(loader::addField);
 
 		// for each non-preserved ${field}, generate and add ${field} to the loader
 		genFields.stream().map(fieldDescriptor).map(MemberDescriptor::asString).forEach(loader::addField);
 
 		// copy all preserved methods to new loader
-		preservedMethods.stream().map((m) -> m.toString()).forEach(loader::addMethod);
+		preservedMethods.stream().map(Object::toString).forEach(loader::addMethod);
 
 		// add loader.from(${javabean} example) method
 		loader.addMethod(new FromMethodDescriptor(javabean, preservedMethods).asString());
@@ -494,9 +468,9 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 			String p = javabean.getPackage() + ".";
 			String desiredSupertype = javabean.getSuperType().replace(p, "") + ".Loader<T>";
 
-			String stringified = loader.toString();
-			stringified = stringified.replace(SUPERTYPE_HOLDER, desiredSupertype);
-			loader = Roaster.parse(JavaClassSource.class, stringified);
+			String asString = loader.toString();
+			asString = asString.replace(SUPERTYPE_HOLDER, desiredSupertype);
+			loader = Roaster.parse(JavaClassSource.class, asString);
 		}
 		return loader;
 	}
@@ -504,18 +478,14 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 	/**
 	 * true if the the field can be identified as input for generation.
-	 * @param field
-	 * @return
 	 */
-	private Predicate<FieldSource<JavaClassSource>> isProperty = f -> {
-		return ! f.isStatic();
-	};
+	private final Predicate<FieldSource<JavaClassSource>> isProperty = f -> ! f.isStatic();
 
 	private JavaClassSource findNestedClass(JavaClassSource javabean, String name) {
 		return (JavaClassSource) javabean.getNestedType(name);
 	}
 
-	private JavaClassSource generateBuilder(JavaClassSource javabean, JavaClassSource existingBuilder) {
+	private JavaClassSource generateBuilder(JavaClassSource javabean, @SuppressWarnings("UnusedParameters") JavaClassSource existingBuild) {
 		JavaClassSource classSource = generateConcreteLoader("Builder");
 		String asString = new BuildMethodDescriptor(javabean, Collections.emptyList()).asString();
 		classSource.addMethod(asString);
@@ -523,20 +493,20 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 	}
 
 	private class BuildMethodDescriptor extends MethodDescriptor {
-		public BuildMethodDescriptor(JavaClassSource enclosure, List<MethodSource<JavaClassSource>> preserved) {
+		BuildMethodDescriptor(JavaClassSource enclosure, List<MethodSource<JavaClassSource>> preserved) {
 			super("build", enclosure, preserved);
 		}
-		private final static String DECL = "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
+		private final static String DECLARATION_TEMPLATE = "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
 				"public ${javabean.name} build() {" +
 				"return initialize(new ${javabean.name}());" +
 				"}";
 		@Override
 		protected String generate() {
-			return DECL.replace("${javabean.name}", enclosure.getName());
+			return DECLARATION_TEMPLATE.replace("${javabean.name}", enclosure.getName());
 		}
 	}
 
-	private JavaClassSource generateUpdater(JavaClassSource javabean, JavaClassSource existingUpdater) {
+	private JavaClassSource generateUpdater(JavaClassSource javabean, @SuppressWarnings("UnusedParameters") JavaClassSource existingUpdater) {
 		JavaClassSource classSource = generateConcreteLoader("Updater");
 		classSource.addMethod(new UpdateMethodDescriptor(javabean, Collections.emptyList()).asString());
 		return classSource;
@@ -544,16 +514,16 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 	private class UpdateMethodDescriptor extends MethodDescriptor {
 
-		public UpdateMethodDescriptor(JavaClassSource enclosure, List<MethodSource<JavaClassSource>> preserved) {
+		UpdateMethodDescriptor(JavaClassSource enclosure, List<MethodSource<JavaClassSource>> preserved) {
 			super("update", enclosure, preserved);
 		}
 
-		private final static String DECL = "public ${javabean.name} update(${javabean.name} target) {" +
+		private final static String DECLARATION_TEMPLATE = "public ${javabean.name} update(${javabean.name} target) {" +
 				"return modify(target);" +
 				"}";
 		@Override
 		protected String generate() {
-			return DECL.replace("${javabean.name}", enclosure.getName());
+			return DECLARATION_TEMPLATE.replace("${javabean.name}", enclosure.getName());
 		}
 	}
 
@@ -563,9 +533,9 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 			c.setSuperType("Loader<" + name + ">");
 		});
 
-		String decl = "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
+		String declarationTemplate = "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
 				"private  " + name + "()\n {}";
-		classSource.addMethod(decl).setConstructor(true);
+		classSource.addMethod(declarationTemplate).setConstructor(true);
 		return classSource;
 	}
 

@@ -4,14 +4,14 @@ import org.jboss.forge.roaster.model.source.JavaClassSource;
 
 import javax.inject.Inject;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 /**
  * @author jfraney
  */
+@SuppressWarnings("unused")
 public class BuilderAndUpdaterGenerateStrategy implements GenerateStrategy {
+	@SuppressWarnings("CanBeFinal")
 	@Inject
 	private JavabeanOperations operations;
 
@@ -22,7 +22,7 @@ public class BuilderAndUpdaterGenerateStrategy implements GenerateStrategy {
 		operations.rebuildBuilder(javabean);
 		operations.rebuildUpdater(javabean);
 
-		operations.rebuildCtors(javabean);
+		operations.rebuildConstructors(javabean);
 		operations.rebuildBuilderMethod(javabean);
 		operations.rebuildUpdaterMethod(javabean);
 
