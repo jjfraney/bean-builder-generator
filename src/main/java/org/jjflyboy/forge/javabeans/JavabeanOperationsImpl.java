@@ -118,17 +118,23 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 	private interface MemberDescriptor {
 
 		String asString();
+
+		boolean isPreserved();
 	}
 
 	private abstract class AbstractMemberDescriptor<T extends MemberSource<JavaClassSource, ?>>
 	implements MemberDescriptor {
-		T existing;
+		T preservedMember;
 
 		@Override
 		public String asString() {
-			return existing == null ? generate() : existing.toString();
+			return isPreserved() ?  preservedMember.toString() : generate();
 		}
 
+		@Override
+		public boolean isPreserved() {
+			return preservedMember != null;
+		}
 		protected abstract String generate();
 	}
 
@@ -144,7 +150,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 		FieldDescriptor(FieldSource<JavaClassSource> field, List<FieldSource<JavaClassSource>> preserved) {
 			this.field = field;
-			existing = preserved.stream().filter(f -> f.getName().equals(field.getName())).findFirst().orElse(null);
+			preservedMember = preserved.stream().filter(f -> f.getName().equals(field.getName())).findFirst().orElse(null);
 		}
 
 		@Override
@@ -165,7 +171,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		final List<MethodSource<JavaClassSource>> preserved;
 		final String name;
 		MethodDescriptor(String name, JavaClassSource enclosure, List<MethodSource<JavaClassSource>> preserved) {
-			existing = preserved.stream().filter(m -> m.getName().equals(name)).findFirst().orElse(null);
+			preservedMember = preserved.stream().filter(m -> m.getName().equals(name)).findFirst().orElse(null);
 			this.enclosure = enclosure;
 			this.preserved = preserved;
 			this.name = name;
@@ -322,7 +328,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 							  List<MethodSource<JavaClassSource>> preserved) {
 			this.field = field;
 			String name = prefix + capitalize(getField().getName());
-			existing = preserved.stream().filter(m -> m.getName().equals(name)).findFirst().orElse(null);
+			preservedMember = preserved.stream().filter(m -> m.getName().equals(name)).findFirst().orElse(null);
 		}
 
 		FieldSource<JavaClassSource> getField() {
@@ -427,10 +433,9 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		final List<FieldSource<JavaClassSource>> preservedFields = existingLoader == null ? Collections.emptyList() :
 				existingLoader.getFields().stream().filter(this::isPreserved).collect(Collectors.toList());
 
-		final List<FieldSource<JavaClassSource>> genFields = javabean.getFields()
+		final List<FieldSource<JavaClassSource>> javabeanProperties = javabean.getFields()
 				.stream()
 				.filter(isProperty)
-				.filter(f -> ! preservedFields.contains(f))
 				.collect(Collectors.toList());
 
 		Function<FieldSource<JavaClassSource>, MemberDescriptor> fieldDescriptor = (f) -> new FieldDescriptor(f, preservedFields);
@@ -440,7 +445,11 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		preservedFields.stream().map(Object::toString).forEach(loader::addField);
 
 		// for each non-preserved ${field}, generate and add ${field} to the loader
-		genFields.stream().map(fieldDescriptor).map(MemberDescriptor::asString).forEach(loader::addField);
+		javabeanProperties.stream()
+				.map(fieldDescriptor)
+				.filter(m -> !m.isPreserved())
+				.map(MemberDescriptor::asString)
+				.forEach(loader::addField);
 
 		// copy all preserved methods to new loader
 		preservedMethods.stream().map(Object::toString).forEach(loader::addMethod);
@@ -455,8 +464,12 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		loader.addMethod(new InitializeMethodDescriptor(javabean, preservedMethods).asString());
 
 
-		// for each ${field}, generate and add with${field} method to the new loader
-		genFields.stream().map(withFieldMethodDescriptor).map(MemberDescriptor::asString).forEach(loader::addMethod);
+		// for each non-preserved With${field} method, generate and add new with${field} method to the new loader
+		javabeanProperties.stream()
+				.map(withFieldMethodDescriptor)
+				.filter(m -> !m.isPreserved())
+				.map(MemberDescriptor::asString)
+				.forEach(loader::addMethod);
 
 		// we want supertype: ${javabean.name}.Loader<T>
 		// roaster's setSuperType(${javabean.name}.Loader<T>) gives supertype of "Loader<T>", WRONG.
