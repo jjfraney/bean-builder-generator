@@ -256,7 +256,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		}
 
 		private final String DESC = "@Generated(" + GENERATED_ANNOTATION_VALUE + ")" +
-				"public ${javabean.name} modify(${javabean.name} target) {" +
+				"protected ${javabean.name} modify(${javabean.name} target) {" +
 				"${statements}" +
 				"return target;}";
 
@@ -290,7 +290,7 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		}
 
 		private final String DESC = "@Generated(" + GENERATED_ANNOTATION_VALUE + ")" +
-				"public ${javabean.name} initialize(${javabean.name} target) {" +
+				"protected ${javabean.name} initialize(${javabean.name} target) {" +
 				"${statements}" +
 				"return target;}";
 
