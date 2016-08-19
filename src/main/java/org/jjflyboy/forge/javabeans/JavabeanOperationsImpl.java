@@ -1,8 +1,6 @@
 package org.jjflyboy.forge.javabeans;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -85,8 +83,9 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 	}
 
 	@Override
-	public JavaClassSource rebuildLoader(JavaClassSource javabean) {
-		return generateNestedClass(javabean, "Loader", this::generateLoader);
+	public JavaClassSource rebuildLoader(JavaClassSource javabean, LoaderFlags[] flags) {
+		BiFunction<JavaClassSource, JavaClassSource, JavaClassSource> gloader = (a, b) -> this.generateLoader(a, b, flags);
+		return generateNestedClass(javabean, "Loader", gloader);
 	}
 
 	@Override
@@ -419,7 +418,8 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 	// we have to compensate for current Roaster behavior: setSuperType results in simple name
 	private static final String SUPERTYPE_HOLDER = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
 
-	private JavaClassSource generateLoader(JavaClassSource javabean, JavaClassSource existingLoader) {
+	private JavaClassSource generateLoader(JavaClassSource javabean, JavaClassSource existingLoader, LoaderFlags ... fs) {
+		Set<LoaderFlags> flags = new HashSet<>((List<LoaderFlags>)Arrays.asList(fs));
 
 		JavaClassSource loader = generateClass(c -> {
 			c.setAbstract(true).setProtected().setStatic(true).setName("Loader");
@@ -459,8 +459,10 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		// add loader.from(${javabean} example) method
 		loader.addMethod(new FromMethodDescriptor(javabean, preservedMethods).asString());
 
-		// add loader.modify(${javabean} target) method
-		loader.addMethod(new ModifyMethodDescriptor(javabean, preservedMethods).asString());
+		if(! flags.contains(LoaderFlags.OMIT_MODIFY_METHOD)) {
+			// add loader.modify(${javabean} target) method
+			loader.addMethod(new ModifyMethodDescriptor(javabean, preservedMethods).asString());
+		}
 
 		// add loader.initialize(${javabean} target) method
 		loader.addMethod(new InitializeMethodDescriptor(javabean, preservedMethods).asString());
