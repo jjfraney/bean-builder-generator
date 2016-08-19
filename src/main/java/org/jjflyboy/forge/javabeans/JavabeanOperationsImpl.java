@@ -224,7 +224,8 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 		@Override
 		protected String generate() {
 			String superCall = hasSuperType(getEnclosure()) ? "super.from(example);\n" : "";
-			return "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
+			return "@SuppressWarnings(\"unchecked\")\n" +
+					"@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
 					"public T from(" + getEnclosure().getName() +
 					" example) {\n" +
 					superCall +
@@ -403,7 +404,8 @@ public class JavabeanOperationsImpl implements JavabeanOperations {
 
 		@Override
 		protected String generate() {
-			return "@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
+			return "@SuppressWarnings(\"unchecked\")\n" +
+					"@Generated(" + GENERATED_ANNOTATION_VALUE + ")\n" +
 					"public T with" + capitalize(getField().getName()) + "(" +
 					getField().getType().getName() + " " + getField().getName() + ") { " +
 					generateBody() + " }";
